@@ -15,8 +15,11 @@ save it to your own collection.
 
 - **Camera scanning** — capture a card in the browser (or upload a photo).
 - **Deep-learning recognition** — the card is located and perspective-corrected
-  with OpenCV, its text is read with EasyOCR (a CRNN-based recognizer), and the
-  result is matched against the Pokémon TCG card database.
+  with OpenCV, its name/number regions are read with EasyOCR (a CRNN-based
+  recognizer), and candidates from the Pokémon TCG card database are ranked by
+  a blend of fuzzy text matching (typo-tolerant, so OCR misreads still surface
+  the right card) and perceptual-hash visual similarity against the scanned
+  photo — each match shown with a confidence score.
 - **Condition / damage detection** — image heuristics (focus/sharpness, corner
   and edge wear, glare) estimate a Cardmarket-style grade
   (Mint → Near Mint → Excellent → Good → Light Played → Played → Poor) and flag
@@ -34,7 +37,7 @@ save it to your own collection.
 | Frontend   | React + TypeScript, Vite, React Router (plain CSS)      |
 | Backend    | Python, FastAPI, SQLAlchemy, SQLite                     |
 | Auth       | JWT (PyJWT) + bcrypt password hashing                   |
-| Vision     | OpenCV (detection/warp), EasyOCR (text), NumPy heuristics |
+| Vision     | OpenCV (detection/warp), EasyOCR (text), imagehash + rapidfuzz (matching), NumPy heuristics |
 | Card data  | [Pokémon TCG API](https://pokemontcg.io) (incl. Cardmarket prices) |
 
 ---
@@ -91,7 +94,8 @@ backend/
       scan.py          scan image -> matches + condition; manual search
     services/
       pokemontcg.py    Pokémon TCG API client + price extraction
-      vision.py        card detection, OCR, condition heuristics
+      vision.py        card detection, region-aware OCR, condition heuristics, perceptual hash
+      imagematch.py    fuzzy text + visual-hash candidate ranking
 frontend/
   src/
     api/client.ts      Typed REST client
@@ -105,15 +109,22 @@ frontend/
 
 1. **Detect** — find the largest card-shaped quadrilateral in the frame and warp
    it flat (`detect_card`).
-2. **Read** — run OCR on the flattened card and extract a likely card name and
-   collector number (`recognize_text`).
-3. **Match** — query the Pokémon TCG API by name/number and return the best
+2. **Read** — OCR the card's name-banner and collector-number regions
+   specifically (small, clean crops — falls back to whole-card OCR if a region
+   read fails) to extract a likely card name and number (`recognize_text`).
+3. **Search** — query the Pokémon TCG API with a broadened, typo-tolerant
+   query (a short name fragment, no hard number filter) to pull a pool of
    candidates, each with its Cardmarket price (`services/pokemontcg.py`).
-4. **Grade** — assess condition from image cues and map it to a Cardmarket grade
+4. **Rank** — score every candidate by fuzzy name similarity (tolerant of OCR
+   misreads) plus, for the top few, perceptual-hash visual similarity between
+   the scanned photo and the candidate's reference image. The blended score is
+   shown to you as a per-match confidence, best match first
+   (`services/imagematch.py`).
+5. **Grade** — assess condition from image cues and map it to a Cardmarket grade
    (`assess_condition`).
 
 If OCR can't read the card clearly, use **Search by name** to look it up manually
-and set the condition yourself.
+(still fuzzy-matched) and set the condition yourself.
 
 ## Notes & limitations
 

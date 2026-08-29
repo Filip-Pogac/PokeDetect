@@ -34,13 +34,23 @@ PRICE_DISCLAIMER = (
 
 
 def _build_query(name: str | None, number: str | None) -> str:
+    """Build a broad, typo-tolerant Lucene query.
+
+    Only wildcards on a short leading fragment of the name (not the full OCR
+    string) so a misread trailing character doesn't zero out results, and
+    number is intentionally NOT a hard filter here - a misread digit would
+    otherwise eliminate an exact name match. Number instead becomes a ranking
+    signal downstream in imagematch.rank_candidates.
+    """
     parts: list[str] = []
     if name:
-        # Escape quotes; wildcard match so partial OCR still hits.
         cleaned = re.sub(r'["\\]', "", name).strip()
         if cleaned:
-            parts.append(f'name:"{cleaned}*"')
-    if number:
+            first_word = cleaned.split(" ", 1)[0]
+            fragment = first_word[:6] if len(first_word) > 6 else first_word
+            if fragment:
+                parts.append(f'name:"{fragment}*"')
+    if not parts and number:
         num = number.split("/")[0].strip()
         if num:
             parts.append(f"number:{num}")
@@ -82,10 +92,15 @@ def _simplify(card: dict) -> dict:
     }
 
 
-async def search_cards(
-    name: str | None = None, number: str | None = None, limit: int = 8
+async def search_candidates(
+    name: str | None = None, number: str | None = None, limit: int = 40
 ) -> list[dict]:
-    """Search cards by (partial) name and/or collector number."""
+    """Fetch a broad candidate pool by (partial) name and/or collector number.
+
+    Deliberately over-fetches (default 40) rather than the small final match
+    list the frontend shows - candidates get filtered/ranked by
+    imagematch.rank_candidates afterward using fuzzy text + visual scoring.
+    """
     query = _build_query(name, number)
     if not query:
         return []

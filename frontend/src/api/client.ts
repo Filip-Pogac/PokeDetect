@@ -29,6 +29,7 @@ export interface CardMatch {
   rarity: string;
   image_url: string;
   price: PriceInfo;
+  confidence: number;
 }
 
 export interface ConditionEstimate {

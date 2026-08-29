@@ -39,6 +39,25 @@ class Settings:
         # OCR engine: "easyocr" (deep learning), "tesseract", or "none".
         self.ocr_engine: str = os.getenv("OCR_ENGINE", "easyocr").lower()
 
+        # Card matching pipeline tunables.
+        # How many raw candidates to pull from the Pokemon TCG API text search.
+        self.match_candidate_limit: int = int(os.getenv("MATCH_CANDIDATE_LIMIT", "40"))
+        # Of those, how many (the top text-scored ones) get visually re-ranked
+        # by fetching + perceptual-hashing their reference image.
+        self.match_visual_rerank_limit: int = int(
+            os.getenv("MATCH_VISUAL_RERANK_LIMIT", "18")
+        )
+        # How many ranked matches to return to the frontend.
+        self.match_final_limit: int = int(os.getenv("MATCH_FINAL_LIMIT", "8"))
+        # Kill switch for the visual re-ranking stage (network + CPU cost per scan).
+        self.enable_visual_rerank: bool = (
+            os.getenv("ENABLE_VISUAL_RERANK", "true").lower() == "true"
+        )
+        # Per-candidate-image fetch timeout for visual re-ranking.
+        self.image_fetch_timeout_seconds: float = float(
+            os.getenv("IMAGE_FETCH_TIMEOUT_SECONDS", "3.0")
+        )
+
 
 @lru_cache
 def get_settings() -> Settings:

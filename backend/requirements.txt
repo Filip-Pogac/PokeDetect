@@ -17,3 +17,8 @@ httpx==0.28.1
 opencv-python-headless==4.10.0.84
 numpy==2.1.3
 easyocr==1.7.2
+
+# Card matching: perceptual-hash visual verification + fuzzy text scoring
+Pillow==11.0.0
+imagehash==4.3.1
+rapidfuzz==3.10.1

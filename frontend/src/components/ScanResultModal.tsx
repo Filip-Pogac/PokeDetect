@@ -147,7 +147,7 @@ export function ScanResultModal({
                   Which card is this? ({result.matches.length} matches)
                 </label>
                 <div className="match-list">
-                  {result.matches.map((m) => (
+                  {result.matches.map((m, i) => (
                     <button
                       key={m.tcg_id}
                       className={`match-row ${
@@ -159,11 +159,19 @@ export function ScanResultModal({
                         <img src={m.image_url} alt="" className="match-thumb" />
                       )}
                       <span className="match-info">
-                        <strong>{m.name}</strong>
+                        <strong>
+                          {m.name}
+                          {i === 0 && m.confidence > 0.7 && (
+                            <span className="best-match-badge">Best match</span>
+                          )}
+                        </strong>
                         <span className="muted">
                           {m.set_name}
                           {m.number ? ` · #${m.number}` : ""}
                           {m.rarity ? ` · ${m.rarity}` : ""}
+                        </span>
+                        <span className="match-confidence muted">
+                          {Math.round(m.confidence * 100)}% match
                         </span>
                       </span>
                       <span className="match-price">

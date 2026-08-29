@@ -176,6 +176,22 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.match-confidence {
+  font-size: 0.72rem;
+}
+.best-match-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--yellow);
+  color: var(--ink);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
 .match-price {
   font-weight: 700;
   color: var(--ink);

@@ -5,10 +5,13 @@ Pipeline
 1. detect_card()      Locate the card rectangle in the photo and perspective-warp
                       it to a flat, upright image (classical CV with OpenCV).
 2. recognize_text()   Read text off the card with a deep-learning OCR engine
-                      (EasyOCR, a CRNN-based recognizer) and pull out a likely
-                      card name and collector number.
+                      (EasyOCR, a CRNN-based recognizer). OCRs the name and
+                      collector-number regions first (small, fast, less noisy)
+                      and only falls back to whole-card OCR if that fails.
 3. assess_condition() Estimate a Cardmarket-style condition grade from image
                       cues: focus/sharpness, corner and edge wear, and glare.
+4. compute_phash()    Perceptual hash of the warped card, used by the scan
+                      router to visually verify/rank candidate matches.
 
 Every stage degrades gracefully: if OpenCV or the OCR engine is unavailable the
 functions still return sensible, typed results so the API never hard-fails.
@@ -33,12 +36,26 @@ try:
 except Exception:  # pragma: no cover - environment dependent
     _HAS_CV2 = False
 
+try:
+    from PIL import Image  # type: ignore
+    import imagehash  # type: ignore
+    _HAS_IMAGEHASH = True
+except Exception:  # pragma: no cover - environment dependent
+    _HAS_IMAGEHASH = False
+
 # EasyOCR reader is expensive to construct, so build it once on first use.
 _easyocr_reader = None
 _ocr_unavailable = False
 
 # Standard trading-card aspect ratio (63mm x 88mm).
 CARD_W, CARD_H = 630, 880
+
+# Fixed crop boxes (fractions of CARD_W/CARD_H) for the two text regions that
+# matter for identification, based on the standard Pokemon TCG template: the
+# name sits in a banner along the top edge, the collector number in a strip
+# along the bottom-left. First-pass estimates - tune against real scans.
+_NAME_BOX = (0.05, 0.025, 0.72, 0.11)  # (x0, y0, x1, y1) as fractions
+_NUMBER_BOX = (0.03, 0.90, 0.50, 0.975)
 
 CONDITION_ORDER = [
     "Mint",
@@ -164,7 +181,7 @@ def _get_easyocr():
 
 def _ocr_lines(image: np.ndarray) -> list[str]:
     engine = settings.ocr_engine
-    if engine == "none" or not _HAS_CV2 or image is None:
+    if engine == "none" or not _HAS_CV2 or image is None or image.size == 0:
         return []
 
     if engine == "tesseract":
@@ -188,6 +205,27 @@ def _ocr_lines(image: np.ndarray) -> list[str]:
         return []
 
 
+def _crop_region(image: np.ndarray, box: tuple[float, float, float, float]) -> np.ndarray:
+    """Crop a (x0, y0, x1, y1) fractional box out of an image, bounds-checked."""
+    h, w = image.shape[:2]
+    x0, y0, x1, y1 = box
+    px0, py0 = max(0, int(x0 * w)), max(0, int(y0 * h))
+    px1, py1 = min(w, int(x1 * w)), min(h, int(y1 * h))
+    if px1 <= px0 or py1 <= py0:
+        return image[0:0, 0:0]
+    return image[py0:py1, px0:px1]
+
+
+def _preprocess_for_ocr(crop: np.ndarray, scale: float = 3.5) -> np.ndarray:
+    """Upscale + contrast-boost a small text region for more reliable OCR."""
+    if crop.size == 0:
+        return crop
+    upscaled = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    gray = cv2.cvtColor(upscaled, cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+    return clahe.apply(gray)
+
+
 _NUMBER_RE = re.compile(r"\b(\d{1,3})\s*/\s*(\d{1,3})\b")
 _NAME_STOPWORDS = {
     "hp", "basic", "stage", "trainer", "energy", "pokemon", "pokémon",
@@ -196,19 +234,18 @@ _NAME_STOPWORDS = {
 }
 
 
-def _guess_name_and_number(lines: list[str]) -> tuple[str | None, str | None]:
-    """Heuristically pull a card name and collector number out of OCR lines."""
-    number: str | None = None
+def _extract_number(lines: list[str]) -> str | None:
     for line in lines:
         m = _NUMBER_RE.search(line)
         if m:
-            number = f"{m.group(1)}/{m.group(2)}"
-            break
+            return f"{m.group(1)}/{m.group(2)}"
+    return None
 
-    # Name candidate: an early, mostly-alphabetic line that isn't a stopword and
-    # isn't dominated by digits. Card names sit at the top of the card.
-    name: str | None = None
-    for line in lines[:6]:
+
+def _extract_name(lines: list[str], max_lines: int = 6) -> str | None:
+    """An early, mostly-alphabetic line that isn't a stopword. Names sit at
+    the top of the card, so later lines (rules text, flavor text) are ignored."""
+    for line in lines[:max_lines]:
         letters = re.sub(r"[^A-Za-z ]", "", line).strip()
         if len(letters) < 3:
             continue
@@ -220,17 +257,65 @@ def _guess_name_and_number(lines: list[str]) -> tuple[str | None, str | None]:
         # Reject lines that are mostly numbers/symbols.
         if len(letters) / max(len(line), 1) < 0.5:
             continue
-        name = letters.strip()
-        break
+        return letters.strip()
+    return None
 
-    return name, number
+
+def _guess_name_and_number(lines: list[str]) -> tuple[str | None, str | None]:
+    """Heuristically pull a card name and collector number out of OCR lines."""
+    return _extract_name(lines), _extract_number(lines)
 
 
 def recognize_text(image: np.ndarray) -> tuple[list[str], str | None, str | None]:
-    """Return (all_lines, guessed_name, guessed_number)."""
-    lines = _ocr_lines(image)
-    name, number = _guess_name_and_number(lines)
-    return lines, name, number
+    """Return (all_lines, guessed_name, guessed_number).
+
+    OCRs the name-banner and collector-number regions of the card first -
+    smaller, less noisy crops than the whole card, so both faster and more
+    accurate in the common case. Falls back to whole-card OCR (today's
+    behavior) if a region crop doesn't yield a usable name or number.
+    """
+    if image is None or not _HAS_CV2:
+        return [], None, None
+
+    name_crop = _preprocess_for_ocr(_crop_region(image, _NAME_BOX))
+    number_crop = _preprocess_for_ocr(_crop_region(image, _NUMBER_BOX))
+
+    name_lines = _ocr_lines(name_crop)
+    number_lines = _ocr_lines(number_crop)
+
+    name = _extract_name(name_lines, max_lines=len(name_lines))
+    number = _extract_number(number_lines)
+
+    if name is not None and number is not None:
+        return name_lines + number_lines, name, number
+
+    # Region OCR didn't get everything - fall back to whole-card OCR, same as
+    # the original single-pass behavior, and fill in whichever piece is missing.
+    fallback_lines = _ocr_lines(image)
+    if name is None:
+        name = _extract_name(fallback_lines)
+    if number is None:
+        number = _extract_number(fallback_lines)
+
+    all_lines = name_lines + number_lines + fallback_lines
+    return all_lines, name, number
+
+
+def compute_phash(image: np.ndarray | None) -> str | None:
+    """Perceptual hash of the (ideally warped, upright) card image.
+
+    Used to visually re-rank text-search candidates. Returns None if the
+    imagehash/Pillow stack isn't available or no image was given, in which
+    case callers should skip visual matching entirely.
+    """
+    if not _HAS_IMAGEHASH or image is None or image.size == 0:
+        return None
+    try:
+        rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) if _HAS_CV2 else image[..., ::-1]
+        pil_image = Image.fromarray(rgb)
+        return str(imagehash.phash(pil_image))
+    except Exception:
+        return None
 
 
 # --------------------------------------------------------------------------- #

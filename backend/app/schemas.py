@@ -59,6 +59,7 @@ class CardMatch(BaseModel):
     rarity: str = ""
     image_url: str = ""
     price: PriceInfo
+    confidence: float = 0.0  # 0-1 blended text+visual match confidence
 
 
 class ScanResult(BaseModel):
