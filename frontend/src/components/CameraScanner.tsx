@@ -1,16 +1,36 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useAutoCapture } from "./useAutoCapture";
 import "./CameraScanner.css";
 
 interface Props {
   onCapture: (imageDataUrl: string) => void;
   busy: boolean;
+  /** Suppress auto-capture (scan in flight, or the result modal is open). */
+  paused?: boolean;
 }
 
-export function CameraScanner({ onCapture, busy }: Props) {
+const AUTO_KEY = "pokedetect_auto_capture";
+
+function loadAutoPreference(): boolean {
+  try {
+    return localStorage.getItem(AUTO_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+const STATUS_TEXT: Record<string, string> = {
+  searching: "Point at a card…",
+  holding: "Hold steady…",
+  captured: "Captured",
+};
+
+export function CameraScanner({ onCapture, busy, paused = false }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [active, setActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [autoCapture, setAutoCapture] = useState(loadAutoPreference);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const stopCamera = useCallback(() => {
@@ -53,6 +73,26 @@ export function CameraScanner({ onCapture, busy }: Props) {
     onCapture(canvas.toDataURL("image/jpeg", 0.9));
   }, [onCapture]);
 
+  const { phase, progress } = useAutoCapture({
+    videoRef,
+    active,
+    enabled: autoCapture,
+    paused: paused || busy,
+    onFire: capture,
+  });
+
+  const toggleAuto = useCallback(() => {
+    setAutoCapture((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(AUTO_KEY, next ? "on" : "off");
+      } catch {
+        /* storage unavailable - preference just won't persist */
+      }
+      return next;
+    });
+  }, []);
+
   const handleFile = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -64,6 +104,8 @@ export function CameraScanner({ onCapture, busy }: Props) {
     },
     [onCapture],
   );
+
+  const showStatus = active && autoCapture && !busy && !paused && phase !== "idle";
 
   return (
     <div className="scanner">
@@ -100,13 +142,31 @@ export function CameraScanner({ onCapture, busy }: Props) {
           </div>
         )}
 
-        {/* Card framing guide */}
-        <div className="scanner-frame" data-active={active}>
+        {/* Card framing guide — brightens as the steady-hold fills */}
+        <div className="scanner-frame" data-active={active} data-phase={phase}>
           <span className="corner tl" />
           <span className="corner tr" />
           <span className="corner bl" />
           <span className="corner br" />
         </div>
+
+        {showStatus && (
+          <div className="scanner-status" data-phase={phase}>
+            <span className="scanner-status-ring" aria-hidden="true">
+              <svg viewBox="0 0 36 36">
+                <circle className="ring-track" cx="18" cy="18" r="16" />
+                <circle
+                  className="ring-fill"
+                  cx="18"
+                  cy="18"
+                  r="16"
+                  style={{ strokeDashoffset: 100.5 * (1 - progress) }}
+                />
+              </svg>
+            </span>
+            <span>{STATUS_TEXT[phase] ?? ""}</span>
+          </div>
+        )}
 
         {busy && (
           <div className="scanner-scanline-wrap">
@@ -124,11 +184,7 @@ export function CameraScanner({ onCapture, busy }: Props) {
           </button>
         ) : (
           <>
-            <button
-              className="btn btn-accent"
-              onClick={capture}
-              disabled={busy}
-            >
+            <button className="btn btn-accent" onClick={capture} disabled={busy}>
               {busy ? <span className="spinner spinner-ink" /> : "Scan card"}
             </button>
             <button className="btn btn-ghost" onClick={stopCamera} disabled={busy}>
@@ -151,6 +207,11 @@ export function CameraScanner({ onCapture, busy }: Props) {
           hidden
           onChange={handleFile}
         />
+
+        <label className="auto-toggle" title="Capture automatically when the card is steady and in focus">
+          <input type="checkbox" checked={autoCapture} onChange={toggleAuto} />
+          <span>Auto-capture</span>
+        </label>
       </div>
     </div>
   );

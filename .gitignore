@@ -30,3 +30,6 @@ frontend/.vite/
 
 # TS build info
 *.tsbuildinfo
+
+# Frame-analysis test build artifact
+frontend/.frame-analysis.build.mjs

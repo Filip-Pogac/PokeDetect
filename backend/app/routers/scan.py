@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..config import get_settings
 from ..deps import get_current_user
@@ -24,6 +24,10 @@ class ScanRequest(BaseModel):
     # Optional manual hints if OCR struggles.
     name_hint: str | None = None
     number_hint: str | None = None
+    # Optional user-corrected card corners, four (x, y) points normalized to
+    # 0-1 fractions of the image. Sent when automatic detection missed and the
+    # user dragged the edges by hand.
+    corners: list[tuple[float, float]] | None = Field(default=None, min_length=4, max_length=4)
 
 
 def _price_info(market_price: float | None, currency: str, condition: str) -> PriceInfo:
@@ -79,10 +83,14 @@ async def scan(
 ) -> ScanResult:
     image = vision.decode_image(payload.image)
 
-    # 1. Locate & flatten the card.
-    detection = vision.detect_card(image) if image is not None else vision.CardDetection(
-        image=None, detected=False  # type: ignore[arg-type]
-    )
+    # 1. Locate & flatten the card. User-supplied corners win over automatic
+    # detection - they only get sent after detection already failed.
+    if image is None:
+        detection = vision.CardDetection(image=None, detected=False)  # type: ignore[arg-type]
+    elif payload.corners:
+        detection = vision.warp_with_corners(image, payload.corners)
+    else:
+        detection = vision.detect_card(image)
 
     # 2. Read text off the card.
     lines, ocr_name, ocr_number = vision.recognize_text(detection.image)

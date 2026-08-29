@@ -121,6 +121,21 @@
   margin: 0 0 16px;
   font-weight: 500;
 }
+.recrop-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 11px 13px;
+  margin-bottom: 16px;
+  background: var(--yellow-tint);
+  border: 1px solid #f0d68a;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  color: #92600a;
+}
+
 .section-label {
   display: block;
   font-size: 0.82rem;

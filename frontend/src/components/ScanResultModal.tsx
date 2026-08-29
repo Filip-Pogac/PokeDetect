@@ -5,6 +5,7 @@ import {
   type ScanResult,
 } from "../api/client";
 import { CONDITIONS, ConditionBadge } from "./ConditionBadge";
+import { CropCorrector } from "./CropCorrector";
 import "./ScanResultModal.css";
 
 interface Props {
@@ -12,6 +13,9 @@ interface Props {
   capturedImage: string | null;
   onClose: () => void;
   onSaved: () => void;
+  /** Re-run the scan with hand-placed card corners. */
+  onRecrop?: (corners: Array<[number, number]>) => void;
+  recropBusy?: boolean;
 }
 
 function formatPrice(value: number | null, currency: string): string {
@@ -25,6 +29,8 @@ export function ScanResultModal({
   capturedImage,
   onClose,
   onSaved,
+  onRecrop,
+  recropBusy = false,
 }: Props) {
   const [selectedId, setSelectedId] = useState<string>(
     result.matches[0]?.tcg_id ?? "",
@@ -33,6 +39,11 @@ export function ScanResultModal({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cropping, setCropping] = useState(false);
+
+  // Only worth offering when detection actually failed and we still hold the
+  // original still to work from.
+  const canRecrop = !result.card_detected && !!capturedImage && !!onRecrop;
 
   const selected: CardMatch | undefined = useMemo(
     () => result.matches.find((m) => m.tcg_id === selectedId),
@@ -96,6 +107,17 @@ export function ScanResultModal({
           ✕
         </button>
 
+        {cropping && capturedImage ? (
+          <CropCorrector
+            imageUrl={capturedImage}
+            busy={recropBusy}
+            onCancel={() => setCropping(false)}
+            onConfirm={(corners) => {
+              setCropping(false);
+              onRecrop?.(corners.map((c) => [c.x, c.y] as [number, number]));
+            }}
+          />
+        ) : (
         <div className="modal-grid">
           {/* Left: card image + condition */}
           <div className="modal-left">
@@ -140,6 +162,20 @@ export function ScanResultModal({
           {/* Right: identity, matches, price, save */}
           <div className="modal-right">
             <p className="modal-message">{result.message}</p>
+
+            {canRecrop && (
+              <div className="recrop-banner">
+                <span>
+                  We couldn’t find the card’s edges, so the reading may be off.
+                </span>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setCropping(true)}
+                >
+                  Mark edges manually
+                </button>
+              </div>
+            )}
 
             {result.matches.length > 0 ? (
               <>
@@ -242,6 +278,7 @@ export function ScanResultModal({
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

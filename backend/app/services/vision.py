@@ -21,6 +21,7 @@ from __future__ import annotations
 import base64
 import binascii
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -118,6 +119,20 @@ def _order_corners(pts: np.ndarray) -> np.ndarray:
     return rect
 
 
+def _warp_to_card(image: np.ndarray, quad: np.ndarray) -> np.ndarray:
+    """Perspective-correct a four-point quad to a flat, upright CARD_W x CARD_H.
+
+    Shared by automatic detection and the user-corrected corners path.
+    """
+    rect = _order_corners(quad)
+    dst = np.array(
+        [[0, 0], [CARD_W - 1, 0], [CARD_W - 1, CARD_H - 1], [0, CARD_H - 1]],
+        dtype="float32",
+    )
+    matrix = cv2.getPerspectiveTransform(rect, dst)
+    return cv2.warpPerspective(image, matrix, (CARD_W, CARD_H))
+
+
 def detect_card(image: np.ndarray) -> CardDetection:
     """Find the largest card-like quadrilateral and warp it flat."""
     if not _HAS_CV2 or image is None:
@@ -152,14 +167,35 @@ def detect_card(image: np.ndarray) -> CardDetection:
     if best_quad is None:
         return CardDetection(image=image, detected=False)
 
-    rect = _order_corners(best_quad)
-    dst = np.array(
-        [[0, 0], [CARD_W - 1, 0], [CARD_W - 1, CARD_H - 1], [0, CARD_H - 1]],
-        dtype="float32",
-    )
-    matrix = cv2.getPerspectiveTransform(rect, dst)
-    warped = cv2.warpPerspective(image, matrix, (CARD_W, CARD_H))
-    return CardDetection(image=warped, detected=True)
+    return CardDetection(image=_warp_to_card(image, best_quad), detected=True)
+
+
+def warp_with_corners(
+    image: np.ndarray, corners_norm: Sequence[Sequence[float]]
+) -> CardDetection:
+    """Warp using corners the user placed by hand, bypassing auto-detection.
+
+    `corners_norm` is four (x, y) points as fractions of image width/height —
+    normalized so the frontend, which renders the still at an arbitrary CSS
+    size, never needs to know the image's pixel dimensions.
+
+    Returns detected=True: corners the user confirmed are at least as
+    trustworthy as an automatic fit, and marking them as a detection re-enables
+    the region-crop OCR and perceptual hash that a failed detection turns off.
+    Falls back to automatic detection if anything is wrong with the input.
+    """
+    if not _HAS_CV2 or image is None:
+        return CardDetection(image=image, detected=False)
+    try:
+        h, w = image.shape[:2]
+        quad = np.array(
+            [[float(x) * w, float(y) * h] for x, y in corners_norm], dtype="float32"
+        )
+        if quad.shape != (4, 2) or not np.isfinite(quad).all():
+            return detect_card(image)
+        return CardDetection(image=_warp_to_card(image, quad), detected=True)
+    except Exception:
+        return detect_card(image)
 
 
 # --------------------------------------------------------------------------- #

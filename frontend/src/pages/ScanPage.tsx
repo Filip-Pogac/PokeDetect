@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { api, type ScanResult } from "../api/client";
 import { CameraScanner } from "../components/CameraScanner";
+import { ScanOnboarding, shouldShowOnboarding } from "../components/ScanOnboarding";
 import { ScanResultModal } from "../components/ScanResultModal";
 import "./ScanPage.css";
 
@@ -10,6 +11,7 @@ export function ScanPage() {
   const [captured, setCaptured] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [manualName, setManualName] = useState("");
+  const [showHelp, setShowHelp] = useState(shouldShowOnboarding);
 
   const runScan = async (image: string) => {
     setBusy(true);
@@ -20,6 +22,21 @@ export function ScanPage() {
       setResult(res);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Scan failed. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Re-run the scan on the same still, using corners the user placed. */
+  const runRecrop = async (corners: Array<[number, number]>) => {
+    if (!captured) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.scan(captured, undefined, undefined, corners);
+      setResult(res);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Re-scan failed. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -59,16 +76,34 @@ export function ScanPage() {
   return (
     <div className="scan-page container">
       <div className="scan-head">
-        <h1>Scan a card</h1>
+        <h1>
+          Scan a card
+          <button
+            className="scan-help-btn"
+            onClick={() => setShowHelp(true)}
+            aria-label="How scanning works"
+            title="How scanning works"
+          >
+            ?
+          </button>
+        </h1>
         <p className="muted">
-          Frame a single Pokémon card inside the guides and tap “Scan card”. We’ll
-          identify it, grade its condition, and estimate its value.
+          Frame a single Pokémon card inside the guides and hold steady — we’ll
+          capture it automatically, identify it, grade its condition, and estimate
+          its value.
         </p>
       </div>
 
       <div className="scan-layout">
         <div className="scan-main card-surface">
-          <CameraScanner onCapture={runScan} busy={busy} />
+          {/* paused matters: busy clears the moment the request resolves, but
+              the result modal opens at that same instant — without this,
+              auto-capture would start firing again behind the open modal. */}
+          <CameraScanner
+            onCapture={runScan}
+            busy={busy}
+            paused={result !== null || showHelp}
+          />
           {error && <div className="alert alert-error" style={{ marginTop: 16 }}>{error}</div>}
         </div>
 
@@ -108,8 +143,12 @@ export function ScanPage() {
           capturedImage={captured}
           onClose={() => setResult(null)}
           onSaved={() => { /* collection refreshes on its own page */ }}
+          onRecrop={runRecrop}
+          recropBusy={busy}
         />
       )}
+
+      {showHelp && <ScanOnboarding onClose={() => setShowHelp(false)} />}
     </div>
   );
 }

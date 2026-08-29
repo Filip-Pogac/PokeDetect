@@ -1,0 +1,78 @@
+.onboard-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 18, 23, 0.6);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 110;
+}
+
+.onboard {
+  width: 100%;
+  max-width: 440px;
+  padding: 26px;
+}
+.onboard h2 {
+  font-size: 1.25rem;
+  margin-bottom: 20px;
+}
+
+.onboard-steps {
+  list-style: none;
+  margin: 0 0 22px;
+  padding: 0;
+  display: grid;
+  gap: 18px;
+}
+.onboard-steps li {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.onboard-steps li > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.onboard-steps strong {
+  font-size: 0.95rem;
+}
+.onboard-steps .muted {
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.onboard-num {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--yellow);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: grid;
+  place-items: center;
+}
+
+.scan-help-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-size: 0.82rem;
+  line-height: 1;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+.scan-help-btn:hover {
+  background: var(--surface-muted);
+  color: var(--ink);
+}

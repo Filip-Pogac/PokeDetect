@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:frames": "esbuild src/lib/frameAnalysis.ts --bundle --format=esm --outfile=.frame-analysis.build.mjs && node scripts/test-frame-analysis.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

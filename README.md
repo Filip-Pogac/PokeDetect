@@ -13,7 +13,14 @@ save it to your own collection.
 
 ## Features
 
-- **Camera scanning** — capture a card in the browser (or upload a photo).
+- **Camera scanning with auto-capture** — hold the phone over a card and the
+  shot is taken by itself once the frame is steady, in focus, and actually has
+  a card in it (analyzed in-browser, no round-trips). A progress ring shows the
+  hold building so it never fires unexpectedly; auto-capture can be switched
+  off, and the manual shutter and photo upload always work.
+- **Manual edge correction** — if automatic card detection misses, drag the four
+  corners onto the card and re-scan. Confirmed corners restore the flattening
+  step that OCR and visual matching depend on.
 - **Deep-learning recognition** — the card is located and perspective-corrected
   with OpenCV, its name/number regions are read with EasyOCR (a CRNN-based
   recognizer), and candidates from the Pokémon TCG card database are ranked by
@@ -113,8 +120,13 @@ frontend/
 
 ## How recognition works
 
+0. **Capture** — the browser samples the live video ~8x/second and fires the
+   shutter once motion, focus and edge-density gates all pass for ~600ms
+   (`src/lib/frameAnalysis.ts`). The focus measure is normalized by scene
+   contrast so it behaves the same in bright and dim light.
 1. **Detect** — find the largest card-shaped quadrilateral in the frame and warp
-   it flat (`detect_card`).
+   it flat (`detect_card`), or use corners the user placed by hand
+   (`warp_with_corners`).
 2. **Read** — OCR the card's name-banner and collector-number regions
    specifically (small, clean crops — falls back to whole-card OCR if a region
    read fails) to extract a likely card name and number (`recognize_text`).
@@ -131,6 +143,15 @@ frontend/
 
 If OCR can't read the card clearly, use **Search by name** to look it up manually
 (still fuzzy-matched) and set the condition yourself.
+
+### Tuning auto-capture
+
+The gate thresholds live as named constants at the top of
+`frontend/src/lib/frameAnalysis.ts`. They were validated against synthetic
+frames but want tuning on real devices — if capture fires too eagerly or never
+fires, adjust `MOTION_MAX`, `SHARPNESS_MIN`, `EDGE_DENSITY_MIN` or
+`HOLD_SAMPLES` there. `npm run test:frames` re-checks the metrics against
+synthetic sharp/blurred/dim/blank frames.
 
 ## Notes & limitations
 

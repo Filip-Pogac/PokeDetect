@@ -133,13 +133,20 @@ export const api = {
 
   me: () => request<User>("/api/auth/me"),
 
-  scan: (image: string, nameHint?: string, numberHint?: string) =>
+  scan: (
+    image: string,
+    nameHint?: string,
+    numberHint?: string,
+    // User-corrected card corners as four [x, y] pairs normalized to 0-1.
+    corners?: Array<[number, number]>,
+  ) =>
     request<ScanResult>("/api/scan", {
       method: "POST",
       body: JSON.stringify({
         image,
         name_hint: nameHint || null,
         number_hint: numberHint || null,
+        corners: corners ?? null,
       }),
     }),
 

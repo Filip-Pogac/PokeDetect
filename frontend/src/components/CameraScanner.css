@@ -62,6 +62,79 @@
 .corner.bl { bottom: 0; left: 0; border-right: none; border-top: none; border-bottom-left-radius: 6px; }
 .corner.br { bottom: 0; right: 0; border-left: none; border-top: none; border-bottom-right-radius: 6px; }
 
+/* The guide turns blue while the steady-hold is counting up, so the automatic
+   shot never feels like it came out of nowhere. */
+.scanner-frame[data-phase="holding"] .corner {
+  border-color: var(--blue);
+}
+.scanner-frame[data-phase="captured"] .corner {
+  border-color: var(--success);
+}
+
+/* Auto-capture status pill */
+.scanner-status {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 8px;
+  border-radius: 999px;
+  background: rgba(22, 24, 29, 0.78);
+  color: #fff;
+  font-size: 0.84rem;
+  font-weight: 600;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.scanner-status-ring {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+.scanner-status-ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.scanner-status-ring circle {
+  fill: none;
+  stroke-width: 4;
+}
+.ring-track {
+  stroke: rgba(255, 255, 255, 0.25);
+}
+.ring-fill {
+  stroke: var(--yellow);
+  stroke-linecap: round;
+  stroke-dasharray: 100.5; /* 2 * PI * r, r = 16 */
+  transition: stroke-dashoffset 0.12s linear;
+}
+.scanner-status[data-phase="captured"] .ring-fill {
+  stroke: var(--success);
+}
+
+.auto-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+}
+.auto-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+
 /* Scan animation while processing */
 .scanner-scanline-wrap {
   position: absolute;
