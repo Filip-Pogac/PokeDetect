@@ -60,6 +60,7 @@ export interface CollectionCard {
   condition: string;
   condition_confidence: number | null;
   damage_notes: string;
+  quantity: number;
   created_at: string;
 }
 
@@ -157,7 +158,10 @@ export const api = {
       body: JSON.stringify(card),
     }),
 
-  updateCard: (id: number, patch: Partial<Pick<CollectionCard, "condition" | "damage_notes">>) =>
+  updateCard: (
+    id: number,
+    patch: Partial<Pick<CollectionCard, "condition" | "damage_notes" | "quantity">>,
+  ) =>
     request<CollectionCard>(`/api/collection/${id}`, {
       method: "PATCH",
       body: JSON.stringify(patch),

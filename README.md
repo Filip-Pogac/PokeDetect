@@ -29,6 +29,12 @@ save it to your own collection.
 - **Accounts & collections** — register / sign in (JWT), then save scanned cards
   to a personal collection with name, set, number, price and condition. Edit the
   condition or remove cards anytime, and see your collection's estimated total.
+- **Collection management** — saving a card you already own bumps its copy count
+  instead of creating a duplicate entry (the same card in a different condition
+  stays separate, since it's worth a different amount). Search by name/set/number,
+  filter by set, sort by value, name, condition or date added, and export the
+  current view to CSV. Totals follow the active filter, so filtering to one set
+  values just that set.
 
 ## Tech stack
 

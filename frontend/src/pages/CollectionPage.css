@@ -38,6 +38,38 @@
   font-size: 1.3rem;
 }
 
+.collection-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  margin-bottom: 18px;
+  align-items: center;
+}
+.collection-toolbar .cc-search {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.collection-toolbar input,
+.collection-toolbar select {
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 9px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--ink);
+}
+.collection-toolbar input:focus,
+.collection-toolbar select:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-tint);
+}
+.collection-toolbar .btn {
+  margin-left: auto;
+}
+
 .collection-empty {
   text-align: center;
   padding: 56px 24px;
@@ -67,6 +99,20 @@
 .cc-image {
   aspect-ratio: 63 / 88;
   background: var(--surface-sunken);
+  position: relative;
+}
+.cc-qty-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--ink);
+  color: var(--yellow);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 3px 9px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
 }
 .cc-image img {
   width: 100%;
@@ -115,6 +161,48 @@
   border-radius: 8px;
   font-size: 0.82rem;
 }
+.cc-qty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cc-qty > .muted {
+  font-size: 0.78rem;
+}
+.cc-qty-controls {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.cc-qty-controls button {
+  border: none;
+  background: var(--surface-muted);
+  color: var(--ink-2);
+  width: 26px;
+  height: 26px;
+  font-size: 1rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  transition: background 0.12s ease;
+}
+.cc-qty-controls button:hover:not(:disabled) {
+  background: var(--surface-sunken);
+}
+.cc-qty-controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.cc-qty-value {
+  min-width: 28px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
 .cc-price {
   display: flex;
   align-items: baseline;

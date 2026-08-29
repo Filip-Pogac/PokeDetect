@@ -52,6 +52,10 @@ class CollectionCard(Base):
     condition_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     damage_notes: Mapped[str] = mapped_column(Text, default="")
 
+    # How many copies of this exact card (same printing + condition) are owned.
+    # Saving the same card again increments this rather than adding a duplicate row.
+    quantity: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
     owner: Mapped["User"] = relationship(back_populates="cards")

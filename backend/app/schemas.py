@@ -83,6 +83,7 @@ class CollectionCardCreate(BaseModel):
     condition: str = "Near Mint"
     condition_confidence: float | None = None
     damage_notes: str = ""
+    quantity: int = Field(default=1, ge=1)
 
 
 class CollectionCardOut(BaseModel):
@@ -100,9 +101,11 @@ class CollectionCardOut(BaseModel):
     condition: str
     condition_confidence: float | None
     damage_notes: str
+    quantity: int
     created_at: datetime
 
 
 class CollectionCardUpdate(BaseModel):
     condition: str | None = None
     damage_notes: str | None = None
+    quantity: int | None = Field(default=None, ge=1)

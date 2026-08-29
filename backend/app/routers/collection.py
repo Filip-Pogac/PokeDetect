@@ -30,12 +30,49 @@ def list_cards(
     return list(db.scalars(stmt).all())
 
 
+def _find_duplicate(
+    payload: CollectionCardCreate, user: User, db: Session
+) -> CollectionCard | None:
+    """Find an existing entry for the same printing in the same condition.
+
+    Collectors think in "I own 3 of these", not three identical rows, so saving
+    a card already in the collection bumps its quantity instead. Matches on the
+    TCG id when we have one (the precise printing), otherwise falls back to the
+    name/set/number triple for manually-added cards.
+    """
+    stmt = select(CollectionCard).where(
+        CollectionCard.owner_id == user.id,
+        CollectionCard.condition == payload.condition,
+    )
+    if payload.tcg_id:
+        stmt = stmt.where(CollectionCard.tcg_id == payload.tcg_id)
+    else:
+        stmt = stmt.where(
+            CollectionCard.tcg_id == "",
+            CollectionCard.name == payload.name,
+            CollectionCard.set_name == payload.set_name,
+            CollectionCard.number == payload.number,
+        )
+    return db.scalars(stmt).first()
+
+
 @router.post("", response_model=CollectionCardOut, status_code=status.HTTP_201_CREATED)
 def add_card(
     payload: CollectionCardCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> CollectionCard:
+    existing = _find_duplicate(payload, current_user, db)
+    if existing is not None:
+        existing.quantity += payload.quantity
+        # Refresh the price - the market moves between scans.
+        if payload.market_price is not None:
+            existing.market_price = payload.market_price
+            existing.currency = payload.currency
+        db.commit()
+        db.refresh(existing)
+        return existing
+
     card = CollectionCard(owner_id=current_user.id, **payload.model_dump())
     db.add(card)
     db.commit()
