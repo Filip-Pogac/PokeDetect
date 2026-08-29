@@ -1,0 +1,1 @@
+"""PokeDetect backend application package."""

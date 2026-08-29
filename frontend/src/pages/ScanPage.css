@@ -1,0 +1,56 @@
+.scan-page {
+  padding-top: 32px;
+  padding-bottom: 48px;
+}
+.scan-head {
+  margin-bottom: 24px;
+}
+.scan-head h1 {
+  font-size: 1.8rem;
+  margin-bottom: 6px;
+}
+.scan-head p {
+  max-width: 640px;
+}
+
+.scan-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .scan-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.scan-main {
+  padding: 20px;
+}
+
+.scan-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.scan-tips,
+.scan-manual {
+  padding: 18px;
+}
+.scan-tips h3,
+.scan-manual h3 {
+  font-size: 1rem;
+  margin-bottom: 10px;
+}
+.scan-tips ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+.scan-manual p {
+  font-size: 0.87rem;
+  margin: 0 0 12px;
+}
