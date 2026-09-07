@@ -33,3 +33,5 @@ frontend/.vite/
 
 # Frame-analysis test build artifact
 frontend/.frame-analysis.build.mjs
+.neon
+.env.local

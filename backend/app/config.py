@@ -12,13 +12,25 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# backend/.env - resolved relative to this file, not the working directory, so
-# it is found no matter where the server is launched from.
+# Both files are resolved relative to this file, not the working directory, so
+# they are found no matter where the server is launched from.
+#
+# backend/.env      - hand-written local settings.
+# <repo>/.env.local - written by `neon link` / `neon config pull`, holding the
+#                     Neon connection strings. Machine-managed, gitignored, and
+#                     overwritten by the CLI, so nothing hand-edited lives here.
 ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
+NEON_ENV_FILE = Path(__file__).resolve().parents[2] / ".env.local"
 
-# override=False: anything already exported in the real environment takes
-# precedence over the file. Done at import time so it lands before the first
-# os.getenv call below.
+# override=False throughout: anything already exported in the real environment
+# takes precedence over both files. Done at import time so it lands before the
+# first os.getenv call below.
+#
+# .env.local is loaded *first*, so on a linked checkout the Neon DATABASE_URL
+# wins over whatever backend/.env says. Without that ordering, a leftover
+# `DATABASE_URL=sqlite:///...` line in backend/.env would silently keep the app
+# on the local file while appearing to be configured for Neon.
+load_dotenv(NEON_ENV_FILE, override=False)
 load_dotenv(ENV_FILE, override=False)
 
 
@@ -35,8 +47,21 @@ class Settings:
             os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080")  # 7 days
         )
 
-        # Database
+        # Database. SQLite by default for local development; set DATABASE_URL
+        # to a Postgres connection string (e.g. Neon) for any real deployment.
+        # Vercel's filesystem is ephemeral, so a SQLite file there is wiped
+        # whenever the instance is recycled - users and collections with it.
         self.database_url: str = os.getenv("DATABASE_URL", "sqlite:///./pokedetect.db")
+        # Connection pool, only used for non-SQLite engines. Small on purpose:
+        # a serverless instance serves few requests at once, and every instance
+        # holds its own pool against Neon's connection limit.
+        self.db_pool_size: int = int(os.getenv("DB_POOL_SIZE", "2"))
+        self.db_max_overflow: int = int(os.getenv("DB_MAX_OVERFLOW", "3"))
+        # Fail fast instead of hanging a request when the database is
+        # unreachable or still waking from auto-suspend.
+        self.db_connect_timeout_seconds: int = int(
+            os.getenv("DB_CONNECT_TIMEOUT_SECONDS", "10")
+        )
 
         # Card database: TCGdex (https://tcgdex.dev). Free, no API key needed,
         # and carries Cardmarket pricing. Replaces pokemontcg.io, whose free

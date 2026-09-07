@@ -6,6 +6,11 @@ uvicorn[standard]==0.34.0
 pydantic[email]==2.10.4
 sqlalchemy==2.0.36
 
+# Postgres driver, used when DATABASE_URL points at a hosted database (Neon).
+# Unused on the SQLite default, but installed unconditionally so the same
+# image works in both. [binary] ships prebuilt wheels - no libpq/compiler.
+psycopg[binary]==3.2.3
+
 # Auth
 bcrypt==4.2.1
 PyJWT==2.10.1

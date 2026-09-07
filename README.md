@@ -83,6 +83,57 @@ reading this repo can forge a session. `backend/.env.example` lists the rest.
 > To use the lighter Tesseract engine instead, set `OCR_ENGINE=tesseract` (and
 > install the Tesseract binary), or `OCR_ENGINE=none` to disable OCR.
 
+### Database
+
+Locally the app uses a SQLite file (`backend/pokedetect.db`) and needs no setup.
+
+**Deployments need a real database.** Vercel's filesystem is ephemeral — each
+instance can start from a fresh disk — so a SQLite file there is silently wiped,
+taking registered users and their collections with it. This project therefore
+uses [Neon](https://neon.tech) Postgres (project `PokeDetect`, region
+`aws-eu-central-1`).
+
+On a fresh checkout, pull the connection strings with the Neon CLI:
+
+```bash
+npm i -g neon@latest
+neon login
+neon link --project-id shiny-truth-64744731 --branch production -y
+```
+
+That writes a gitignored `.env.local` at the repo root holding `DATABASE_URL`
+(the **pooled** endpoint — host ends in `-pooler`, which is the one to use from
+serverless, since many short-lived instances each opening a connection would
+otherwise exhaust the direct endpoint's limit), `DATABASE_URL_UNPOOLED` and
+`NEON_BRANCH`. `app/config.py` loads that file *before* `backend/.env`, so on a
+linked checkout the Neon URL wins over any local `DATABASE_URL`.
+
+Without the CLI, copy the pooled string from **Connection Details** in the
+[Neon console](https://console.neon.tech) and set it by hand:
+
+```
+DATABASE_URL=postgresql://user:password@ep-xxx-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require
+```
+
+On Vercel, set the same `DATABASE_URL` under **Settings → Environment
+Variables** for all environments.
+
+`postgres://` and `postgresql://` URLs are both accepted and rewritten onto the
+psycopg 3 driver, and `sslmode=require` is added if missing (Neon rejects
+plaintext connections). Tables are created on startup, so a brand-new Neon
+project needs no manual schema step.
+
+`scripts/migrate_sqlite_to_postgres.py` carries an existing local SQLite
+database over to Postgres — it copies users and collection cards preserving
+ids, fast-forwards the Postgres id sequences, and refuses to run if the target
+already has rows. It was used once to move the original `pokedetect.db` across;
+a fresh deployment starting from an empty database does not need it.
+
+```bash
+cd backend
+python scripts/migrate_sqlite_to_postgres.py --source sqlite:///./pokedetect.db
+```
+
 ### 2. Frontend
 
 ```bash
