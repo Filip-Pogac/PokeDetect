@@ -178,6 +178,3 @@ synthetic sharp/blurred/dim/blank frames.
   background and even lighting help a lot.
 - Prices track Cardmarket trend data and are approximate; see the disclaimer
   above.
-#   P o k e D e t e c t  
- #   P o k e D e t e c t  
- 
