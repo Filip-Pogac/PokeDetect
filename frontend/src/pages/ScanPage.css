@@ -11,6 +11,7 @@
 }
 .scan-head p {
   max-width: 640px;
+  margin-bottom: 16px;
 }
 
 .scan-layout {
@@ -43,7 +44,7 @@
   font-size: 1rem;
   margin-bottom: 10px;
 }
-.scan-tips ul {
+.scan-tip-list {
   margin: 0;
   padding-left: 18px;
   color: var(--ink-soft);
@@ -53,4 +54,33 @@
 .scan-manual p {
   font-size: 0.87rem;
   margin: 0 0 12px;
+}
+
+/* Confirmation that a card landed in the collection. The picker closes on
+   save, so this is what tells the user it worked. */
+.scan-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 120;
+  max-width: min(92vw, 420px);
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+  animation: scan-toast-in 0.22s ease-out;
+}
+@keyframes scan-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }

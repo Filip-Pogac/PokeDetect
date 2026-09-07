@@ -1,0 +1,1 @@
+Always make a sound notification when answer for given prompt is finished.

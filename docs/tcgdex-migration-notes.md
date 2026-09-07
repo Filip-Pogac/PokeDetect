@@ -1,5 +1,9 @@
 # Migrating from pokemontcg.io to TCGdex (free, no API key)
 
+> **Status: done.** Carried out in `backend/app/services/carddb.py` (which
+> replaced `pokemontcg.py`) along with the config and docs changes listed at the
+> bottom. Kept as the record of the endpoint shapes and gotchas behind it.
+
 pokemontcg.io no longer offers a usable free plan. TCGdex (`https://api.tcgdex.net/v2/en`)
 is free, needs **no API key or signup**, and carries Cardmarket EUR pricing.
 

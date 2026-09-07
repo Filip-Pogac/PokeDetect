@@ -10,6 +10,10 @@ sqlalchemy==2.0.36
 bcrypt==4.2.1
 PyJWT==2.10.1
 
+# Loads backend/.env into the environment. Already pulled in by
+# uvicorn[standard], but declared here because config.py imports it directly.
+python-dotenv==1.2.3
+
 # HTTP client for the Pokemon TCG API
 httpx==0.28.1
 

@@ -41,9 +41,13 @@ class CollectionCard(Base):
     number: Mapped[str] = mapped_column(String(50), default="")
     rarity: Mapped[str] = mapped_column(String(120), default="")
     image_url: Mapped[str] = mapped_column(Text, default="")
-    tcg_id: Mapped[str] = mapped_column(String(120), default="")  # pokemontcg.io card id
+    tcg_id: Mapped[str] = mapped_column(String(120), default="")  # TCGdex card id, e.g. "base1-4"
+    # Print finish, e.g. "Reverse Holo", "1st Edition". Blank when the card
+    # only has one real-world finish, or the scan gave no usable hint - see
+    # services.carddb.select_variant_price.
+    variant: Mapped[str] = mapped_column(String(40), default="", server_default="")
 
-    # Valuation (Cardmarket, via pokemontcg.io) — an approximate market figure.
+    # Valuation (Cardmarket, via TCGdex) — an approximate market figure.
     market_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     currency: Mapped[str] = mapped_column(String(10), default="EUR")
 

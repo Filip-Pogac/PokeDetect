@@ -1,7 +1,15 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { EnergyChip, Pokeball, PokeballWatermark, type EnergyType } from "../components/PokeArt";
 import { useAuth } from "../context/AuthContext";
 import "./LoginPage.css";
+
+const FEATURES: Array<{ type: EnergyType; label: string }> = [
+  { type: "lightning", label: "Deep-learning card recognition" },
+  { type: "water", label: "Automatic condition & damage grading" },
+  { type: "fire", label: "Cardmarket price estimates" },
+  { type: "grass", label: "Your own saved collection" },
+];
 
 export function LoginPage() {
   const { login, register } = useAuth();
@@ -33,37 +41,51 @@ export function LoginPage() {
 
   return (
     <div className="auth-page">
+      {/* Split in two so the phone layout can wrap the form: the pitch reads
+          above the card, the supporting detail below it. On desktop the two
+          halves flow together as one column of hero copy. */}
       <div className="auth-hero">
+        {/* Anchored to the hero column itself — .auth-hero-inner is positioned,
+            so a watermark nested inside it would offset from that 460px block
+            instead of the column's bottom-right corner. */}
+        <PokeballWatermark className="auth-hero-ball" size={460} />
         <div className="auth-hero-inner">
-          <h1 className="auth-hero-title">
-            Scan any Pokémon card.
-            <br />
-            <span className="hl">Know its condition & value.</span>
-          </h1>
-          <p className="auth-hero-sub">
-            Point your camera at a card. PokeDetect identifies it, estimates its
-            condition, and shows an approximate Cardmarket price — then saves it to
-            your personal collection.
-          </p>
-          <ul className="auth-features">
-            <li>
-              <span className="dot" /> Deep-learning card recognition
-            </li>
-            <li>
-              <span className="dot" /> Automatic condition & damage grading
-            </li>
-            <li>
-              <span className="dot" /> Cardmarket price estimates
-            </li>
-            <li>
-              <span className="dot" /> Your own saved collection
-            </li>
-          </ul>
+          <div className="auth-hero-head">
+            <span className="auth-eyebrow">
+              <Pokeball size={16} />
+              Pokémon TCG scanner
+            </span>
+            <h1 className="auth-hero-title">
+              Scan any Pokémon card.
+              <br />
+              <span className="hl">Know its condition & value.</span>
+            </h1>
+          </div>
+          <div className="auth-hero-body">
+            {/* The phone counterpart: the hero column is dissolved there, so the
+                band carries its own mark. Hidden on desktop. */}
+            <PokeballWatermark className="auth-hero-ball-sm" size={290} />
+            <p className="auth-hero-sub">
+              Point your camera at a card. PokeDetect identifies it, estimates its
+              condition, and shows an approximate Cardmarket price — then saves it
+              to your personal collection.
+            </p>
+            <ul className="auth-features">
+              {FEATURES.map((f) => (
+                <li key={f.label}>
+                  <EnergyChip type={f.type} /> {f.label}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
 
       <div className="auth-form-wrap">
         <div className="auth-card card-surface">
+          <div className="auth-card-mark" aria-hidden="true">
+            <Pokeball size={34} split />
+          </div>
           <div className="auth-tabs">
             <button
               className={mode === "login" ? "auth-tab active" : "auth-tab"}

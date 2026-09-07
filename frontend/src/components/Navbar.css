@@ -1,9 +1,24 @@
 .navbar {
   background: var(--ink);
-  border-bottom: 3px solid var(--yellow);
   position: sticky;
   top: 0;
   z-index: 40;
+}
+/* Type-spectrum rule under the bar: the yellow keyline still dominates, with
+   the other energy colours bleeding in at the edges. */
+.navbar::after {
+  content: "";
+  display: block;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--type-fire),
+    var(--type-lightning) 22%,
+    var(--yellow) 40%,
+    var(--yellow) 60%,
+    var(--type-water) 80%,
+    var(--type-psychic)
+  );
 }
 .navbar-inner {
   display: flex;
@@ -20,31 +35,17 @@
   gap: 10px;
 }
 .brand-mark {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--white);
-  border: 3px solid var(--yellow);
   display: grid;
   place-items: center;
-  position: relative;
-  overflow: hidden;
+  color: var(--yellow);
+  /* The pokéball's centre window, so it punches through to the dark bar. */
+  --pokeart-core: var(--ink);
+  transition: transform 0.35s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
-.brand-mark::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 50% 0;
-  background: var(--blue);
+.brand-link:hover .brand-mark {
+  transform: rotate(-20deg) scale(1.06);
 }
-.brand-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--white);
-  border: 2px solid var(--ink);
-  position: relative;
-  z-index: 2;
-}
+
 .brand-name {
   font-family: var(--font-display);
   font-weight: 700;
@@ -61,10 +62,19 @@
   gap: 6px;
   margin-left: 4px;
 }
+/* Flex-centred rather than text-flow: the labels differ in length, and the
+   active pill has to read as the same shape whichever tab is on. */
 .nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 38px;
+  white-space: nowrap;
   color: #c4c8d2;
   font-weight: 500;
   font-size: 0.94rem;
+  line-height: 1;
   padding: 8px 12px;
   border-radius: 8px;
   transition: color 0.15s ease, background 0.15s ease;
@@ -93,12 +103,59 @@
   padding: 7px 12px;
   font-size: 0.85rem;
 }
+.nav-right .btn-sm {
+  min-height: 38px;
+  line-height: 1;
+  white-space: nowrap;
+}
 
+/* Phone header: everything on one line. The labels stop wrapping, so the
+   three controls stay the same height and the row no longer runs past the
+   right edge with "Sign out" half off-screen. */
 @media (max-width: 560px) {
   .nav-user {
     display: none;
   }
   .navbar-inner {
-    gap: 14px;
+    gap: 10px;
+    height: 60px;
+  }
+  .brand-name {
+    font-size: 1rem;
+  }
+  .brand {
+    gap: 8px;
+  }
+  .nav-links {
+    gap: 2px;
+    margin-left: 0;
+    min-width: 0;
+  }
+  .nav-link {
+    font-size: 0.8rem;
+    padding: 7px 9px;
+    min-height: 34px;
+  }
+  .nav-right {
+    gap: 8px;
+  }
+  .nav-right .btn-sm {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    min-height: 34px;
+  }
+}
+
+/* Below this the wordmark is what has to give — the pokéball still carries
+   the brand, and the nav keeps its full labels. */
+@media (max-width: 390px) {
+  .brand-name {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-link:hover .brand-mark {
+    transform: none;
   }
 }

@@ -12,10 +12,20 @@ interface Props {
   result: ScanResult;
   capturedImage: string | null;
   onClose: () => void;
-  onSaved: () => void;
+  /** Discard this result and go back to the scanner for another attempt.
+   *  Distinct from onClose: closing keeps the still around, this throws it
+   *  away so the camera starts clean. */
+  onRescan?: () => void;
+  /** Fired once the card is in the collection; the modal closes right after. */
+  onSaved: (card: CardMatch) => void;
   /** Re-run the scan with hand-placed card corners. */
   onRecrop?: (corners: Array<[number, number]>) => void;
   recropBusy?: boolean;
+  /**
+   * False for name searches, where there is no photo to grade: the estimate
+   * and its confidence bar would just be a guess dressed up as a reading.
+   */
+  conditionAnalyzed?: boolean;
 }
 
 function formatPrice(value: number | null, currency: string): string {
@@ -24,30 +34,92 @@ function formatPrice(value: number | null, currency: string): string {
   return `${symbol}${value.toFixed(2)}`;
 }
 
+interface MatchListProps {
+  cards: CardMatch[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+  /** Confidence is only meaningful for ranked matches, not name suggestions. */
+  showConfidence?: boolean;
+}
+
+function MatchList({
+  cards,
+  selectedId,
+  onSelect,
+  showConfidence = false,
+}: MatchListProps) {
+  return (
+    <div className="match-list">
+      {cards.map((m, i) => (
+        <button
+          key={m.tcg_id}
+          className={`match-row ${
+            m.tcg_id === selectedId ? "match-row-active" : ""
+          }`}
+          onClick={() => onSelect(m.tcg_id)}
+        >
+          {m.image_url && <img src={m.image_url} alt="" className="match-thumb" />}
+          <span className="match-info">
+            <strong>
+              {m.name}
+              {showConfidence && i === 0 && m.confidence > 0.7 && (
+                <span className="best-match-badge">Best match</span>
+              )}
+            </strong>
+            <span className="muted">
+              {m.set_name}
+              {m.number ? ` · #${m.number}` : ""}
+              {m.rarity ? ` · ${m.rarity}` : ""}
+              {m.variant ? ` · ${m.variant}` : ""}
+            </span>
+            {showConfidence && (
+              <span className="match-confidence muted">
+                {Math.round(m.confidence * 100)}% match
+              </span>
+            )}
+          </span>
+          <span className="match-price">
+            {formatPrice(m.price.market_price, m.price.currency)}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function ScanResultModal({
   result,
   capturedImage,
   onClose,
+  onRescan,
   onSaved,
   onRecrop,
   recropBusy = false,
+  conditionAnalyzed = true,
 }: Props) {
   const [selectedId, setSelectedId] = useState<string>(
     result.matches[0]?.tcg_id ?? "",
   );
   const [condition, setCondition] = useState<string>(result.condition.condition);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cropping, setCropping] = useState(false);
 
-  // Only worth offering when detection actually failed and we still hold the
-  // original still to work from.
-  const canRecrop = !result.card_detected && !!capturedImage && !!onRecrop;
+  // Offered whenever the original still is still around, not only when
+  // detection failed outright: automatic detection can just as easily lock onto
+  // the wrong rectangle and return a confident reading of the wrong card, and
+  // a user who sees the wrong card needs a way to correct it.
+  const canRecrop = !!capturedImage && !!onRecrop;
+
+  // A pick can come from either list, so resolve against both.
+  const selectable = useMemo(
+    () => [...result.matches, ...(result.suggestions ?? [])],
+    [result.matches, result.suggestions],
+  );
 
   const selected: CardMatch | undefined = useMemo(
-    () => result.matches.find((m) => m.tcg_id === selectedId),
-    [result.matches, selectedId],
+    () => selectable.find((m) => m.tcg_id === selectedId),
+    [selectable, selectedId],
   );
 
   // Recompute the condition-adjusted estimate on the client so it updates
@@ -78,22 +150,26 @@ export function ScanResultModal({
         rarity: selected.rarity,
         image_url: selected.image_url,
         tcg_id: selected.tcg_id,
+        variant: selected.variant,
         market_price: selected.price.market_price,
         currency: selected.price.currency,
         condition,
         condition_confidence: result.condition.confidence,
         damage_notes: result.condition.notes.join(" "),
       });
-      setSaved(true);
-      onSaved();
+      // The card is in the collection, so the picker has done its job — get
+      // it out of the way instead of leaving the user to dismiss it.
+      onSaved(selected);
+      onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save the card.");
-    } finally {
       setSaving(false);
     }
   };
 
   const cond = result.condition;
+  const suggestions = result.suggestions ?? [];
+  const suggestedNames = result.suggested_names ?? [];
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -132,21 +208,25 @@ export function ScanResultModal({
             </div>
 
             <div className="condition-block">
-              <div className="condition-head">
-                <span className="condition-label">Estimated condition</span>
-                <ConditionBadge condition={cond.condition} />
-              </div>
-              <div className="confidence-bar">
-                <div
-                  className="confidence-fill"
-                  style={{ width: `${Math.round(cond.confidence * 100)}%` }}
-                />
-              </div>
-              <span className="confidence-text">
-                {Math.round(cond.confidence * 100)}% confidence
-              </span>
+              {conditionAnalyzed && (
+                <>
+                  <div className="condition-head">
+                    <span className="condition-label">Estimated condition</span>
+                    <ConditionBadge condition={cond.condition} />
+                  </div>
+                  <div className="confidence-bar">
+                    <div
+                      className="confidence-fill"
+                      style={{ width: `${Math.round(cond.confidence * 100)}%` }}
+                    />
+                  </div>
+                  <span className="confidence-text">
+                    {Math.round(cond.confidence * 100)}% confidence
+                  </span>
+                </>
+              )}
 
-              {cond.is_potentially_damaged && (
+              {conditionAnalyzed && cond.is_potentially_damaged && (
                 <div className="damage-flag">
                   ⚠ This card may be damaged or worn.
                 </div>
@@ -166,7 +246,9 @@ export function ScanResultModal({
             {canRecrop && (
               <div className="recrop-banner">
                 <span>
-                  We couldn’t find the card’s edges, so the reading may be off.
+                  {result.card_detected
+                    ? "Wrong card? Marking the edges yourself usually fixes it."
+                    : "We couldn’t find the card’s edges, so the reading may be off."}
                 </span>
                 <button
                   className="btn btn-ghost btn-sm"
@@ -177,50 +259,48 @@ export function ScanResultModal({
               </div>
             )}
 
-            {result.matches.length > 0 ? (
+            {result.recognized_number && (
+              <p className="read-number muted">
+                Card number read: <strong>{result.recognized_number}</strong>
+              </p>
+            )}
+
+            {result.matches.length > 0 && (
               <>
                 <label className="section-label">
-                  Which card is this? ({result.matches.length} matches)
+                  Which card is this? ({result.matches.length}{" "}
+                  {result.matches.length === 1 ? "printing" : "printings"})
                 </label>
-                <div className="match-list">
-                  {result.matches.map((m, i) => (
-                    <button
-                      key={m.tcg_id}
-                      className={`match-row ${
-                        m.tcg_id === selectedId ? "match-row-active" : ""
-                      }`}
-                      onClick={() => setSelectedId(m.tcg_id)}
-                    >
-                      {m.image_url && (
-                        <img src={m.image_url} alt="" className="match-thumb" />
-                      )}
-                      <span className="match-info">
-                        <strong>
-                          {m.name}
-                          {i === 0 && m.confidence > 0.7 && (
-                            <span className="best-match-badge">Best match</span>
-                          )}
-                        </strong>
-                        <span className="muted">
-                          {m.set_name}
-                          {m.number ? ` · #${m.number}` : ""}
-                          {m.rarity ? ` · ${m.rarity}` : ""}
-                        </span>
-                        <span className="match-confidence muted">
-                          {Math.round(m.confidence * 100)}% match
-                        </span>
-                      </span>
-                      <span className="match-price">
-                        {formatPrice(m.price.market_price, m.price.currency)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                <MatchList
+                  cards={result.matches}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  showConfidence
+                />
               </>
-            ) : (
+            )}
+
+            {result.matches.length === 0 && suggestions.length > 0 && (
+              <>
+                <div className="alert alert-info">
+                  Couldn’t pin down the exact printing, so here is every card
+                  named {suggestedNames.map((n) => `“${n}”`).join(", ")}.
+                </div>
+                <label className="section-label">
+                  Cards with this name ({suggestions.length})
+                </label>
+                <MatchList
+                  cards={suggestions}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                />
+              </>
+            )}
+
+            {result.matches.length === 0 && suggestions.length === 0 && (
               <div className="alert alert-info">
-                No card match found. Try re-scanning with better lighting, or use
-                “Search by name”.
+                No card match found. Try “Scan again” with better lighting, or
+                use “Search by name”.
               </div>
             )}
 
@@ -264,15 +344,20 @@ export function ScanResultModal({
             {error && <div className="alert alert-error">{error}</div>}
 
             <div className="modal-actions">
-              {saved ? (
-                <div className="saved-note">✓ Saved to your collection</div>
-              ) : (
+              <button
+                className="btn btn-primary"
+                onClick={handleSave}
+                disabled={!selected || saving}
+              >
+                {saving ? <span className="spinner" /> : "Save to my collection"}
+              </button>
+              {onRescan && (
                 <button
-                  className="btn btn-primary btn-block"
-                  onClick={handleSave}
-                  disabled={!selected || saving}
+                  className="btn btn-ghost"
+                  onClick={onRescan}
+                  disabled={saving}
                 >
-                  {saving ? <span className="spinner" /> : "Save to my collection"}
+                  Scan again
                 </button>
               )}
             </div>

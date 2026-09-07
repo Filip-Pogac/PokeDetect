@@ -1,3 +1,4 @@
+import { PokeballWatermark } from "./PokeArt";
 import "./ScanOnboarding.css";
 
 const KEY = "pokedetect_onboarded";
@@ -49,6 +50,7 @@ export function ScanOnboarding({ onClose }: { onClose: () => void }) {
         aria-modal="true"
         aria-labelledby="onboard-title"
       >
+        <PokeballWatermark className="onboard-ball" size={200} />
         <h2 id="onboard-title">How scanning works</h2>
         <ol className="onboard-steps">
           {STEPS.map((s, i) => (

@@ -1,12 +1,13 @@
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { Pokeball } from "./PokeArt";
 import "./Navbar.css";
 
 function Logo() {
   return (
     <div className="brand">
       <span className="brand-mark" aria-hidden="true">
-        <span className="brand-dot" />
+        <Pokeball size={26} split />
       </span>
       <span className="brand-name">
         Poke<span className="brand-accent">Detect</span>

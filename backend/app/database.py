@@ -39,6 +39,7 @@ def get_db() -> Generator[Session, None, None]:
 _SQLITE_ADDED_COLUMNS: list[tuple[str, str, str]] = [
     # (table, column, DDL type + default)
     ("collection_cards", "quantity", "INTEGER NOT NULL DEFAULT 1"),
+    ("collection_cards", "variant", "TEXT NOT NULL DEFAULT ''"),
 ]
 
 

@@ -30,6 +30,9 @@ export interface CardMatch {
   image_url: string;
   price: PriceInfo;
   confidence: number;
+  /** Which print finish `price` reflects, e.g. "Reverse Holo", "1st Edition".
+   * Blank when the card only has one finish, or the scan gave no usable hint. */
+  variant: string;
 }
 
 export interface ConditionEstimate {
@@ -41,8 +44,14 @@ export interface ConditionEstimate {
 
 export interface ScanResult {
   matches: CardMatch[];
+  /** Cards sharing the scanned name, offered when `matches` is empty. */
+  suggestions: CardMatch[];
+  /** The name(s) `suggestions` were looked up under. */
+  suggested_names: string[];
   condition: ConditionEstimate;
   recognized_text: string[];
+  /** Collector number read off the card, e.g. "9/165". */
+  recognized_number: string | null;
   card_detected: boolean;
   message: string;
 }
@@ -55,6 +64,7 @@ export interface CollectionCard {
   rarity: string;
   image_url: string;
   tcg_id: string;
+  variant: string;
   market_price: number | null;
   currency: string;
   condition: string;
@@ -150,12 +160,12 @@ export const api = {
       }),
     }),
 
-  searchCards: (name: string, condition: string) =>
-    request<CardMatch[]>(
-      `/api/scan/search?name=${encodeURIComponent(name)}&condition=${encodeURIComponent(
-        condition,
-      )}`,
-    ),
+  searchCards: (name: string, condition: string, number?: string | null) => {
+    const params = new URLSearchParams({ condition });
+    if (name) params.set("name", name);
+    if (number) params.set("number", number);
+    return request<CardMatch[]>(`/api/scan/search?${params.toString()}`);
+  },
 
   listCollection: () => request<CollectionCard[]>("/api/collection"),
 

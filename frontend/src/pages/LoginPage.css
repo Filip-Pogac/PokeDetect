@@ -1,15 +1,10 @@
 .auth-page {
   display: grid;
   grid-template-columns: 1.1fr 0.9fr;
-  min-height: calc(100vh - 64px);
-}
-@media (max-width: 860px) {
-  .auth-page {
-    grid-template-columns: 1fr;
-  }
-  .auth-hero {
-    display: none;
-  }
+  min-height: calc(100vh - 67px);
+  /* dvh tracks the collapsing browser chrome on mobile, so the panel is sized
+     against what is actually visible rather than the largest possible frame. */
+  min-height: calc(100dvh - 67px);
 }
 
 .auth-hero {
@@ -41,6 +36,40 @@
   border-radius: 50%;
   background: radial-gradient(circle, rgba(247, 201, 72, 0.25), transparent 70%);
 }
+/* Oversized pokéball bleeding off the bottom-right of the hero. Sits above
+   the radial glows but under the copy. */
+.auth-hero-ball {
+  right: -130px;
+  bottom: -150px;
+  color: #fff;
+  opacity: 0.06;
+  z-index: 0;
+}
+/* Phone-only counterpart, shown by the mobile block below. */
+.auth-hero-ball-sm {
+  display: none;
+  color: #fff;
+  opacity: 0.06;
+  z-index: 0;
+}
+
+.auth-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 6px 14px 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--yellow);
+  --pokeart-core: transparent;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .auth-hero-inner {
   position: relative;
   z-index: 1;
@@ -75,12 +104,10 @@
   color: #e6e8ec;
   font-weight: 500;
 }
-.auth-features .dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--yellow);
-  flex-shrink: 0;
+/* Each feature is tagged with an energy type — a bullet that carries the
+   theme instead of a plain dot. */
+.auth-features li {
+  gap: 14px;
 }
 
 .auth-form-wrap {
@@ -93,6 +120,28 @@
   width: 100%;
   max-width: 400px;
   padding: 28px;
+  position: relative;
+}
+/* The pokéball perched on the card's top edge, straddling the dark band above
+   it on phones. */
+.auth-card-mark {
+  position: absolute;
+  top: -21px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--yellow);
+  --pokeart-core: var(--ink);
+  border: 3px solid var(--surface);
+  box-shadow: var(--shadow-md);
+}
+.auth-tabs {
+  margin-top: 14px;
 }
 .auth-tabs {
   display: flex;
@@ -117,4 +166,143 @@
   background: var(--white);
   color: var(--ink);
   box-shadow: var(--shadow-sm);
+}
+
+/* ---------- Tablet / phone ----------
+   The side-by-side hero becomes two dark bands wrapped around the form: the
+   headline above the card, the detail and feature list below it. `display:
+   contents` dissolves the hero's own boxes so its two halves become direct
+   children of the page column and can be ordered around the form.
+
+   This block has to stay *after* the base rules: it and `.auth-hero { display:
+   flex }` carry the same specificity, so whichever is declared last wins — a
+   media query adds none of its own. It previously sat at the top of the file
+   and never took effect at all. */
+@media (max-width: 860px) {
+  .auth-page {
+    display: flex;
+    flex-direction: column;
+  }
+  .auth-hero,
+  .auth-hero-inner {
+    display: contents;
+  }
+
+  .auth-hero-head,
+  .auth-hero-body {
+    background: var(--ink);
+    color: #fff;
+    padding: 22px 20px;
+  }
+  .auth-hero-head {
+    order: 1;
+    /* A hint of the desktop hero's glow, since ::before/::after live on the
+       hero box that display: contents just removed. */
+    background: radial-gradient(
+        120% 140% at 8% 0%,
+        rgba(247, 201, 72, 0.16),
+        transparent 60%
+      ),
+      var(--ink);
+    padding-bottom: 26px;
+  }
+  .auth-form-wrap {
+    order: 2;
+    flex: 1;
+  }
+  .auth-hero-body {
+    order: 3;
+    position: relative;
+    overflow: hidden;
+    background: radial-gradient(
+        90% 120% at 100% 100%,
+        rgba(37, 99, 235, 0.35),
+        transparent 65%
+      ),
+      var(--ink);
+    padding-bottom: calc(26px + env(safe-area-inset-bottom));
+  }
+
+  .auth-eyebrow {
+    margin-bottom: 12px;
+  }
+  .auth-hero-title {
+    font-size: 1.6rem;
+    margin-bottom: 0;
+  }
+  .auth-hero-sub {
+    font-size: 0.94rem;
+    line-height: 1.55;
+    margin-bottom: 18px;
+  }
+  .auth-features li {
+    font-size: 0.92rem;
+    gap: 12px;
+  }
+  /* The desktop mark belongs to the hero column, which display: contents has
+     just dissolved — the band shows its own instead. */
+  .auth-hero-ball {
+    display: none;
+  }
+  .auth-hero-ball-sm {
+    display: block;
+    right: -70px;
+    bottom: -90px;
+  }
+}
+
+@media (max-width: 430px) {
+  .auth-hero-title {
+    font-size: 1.4rem;
+  }
+}
+
+/* Phones: the card is the only thing on screen, so it is sized to sit inside
+   the visible viewport — no scrolling to reach the submit button. */
+@media (max-width: 560px) {
+  .auth-form-wrap {
+    padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+    align-items: center;
+  }
+  .auth-card {
+    padding: 22px 18px;
+    max-width: 420px;
+  }
+  .auth-tabs {
+    margin-bottom: 18px;
+  }
+  .auth-tab {
+    padding: 8px;
+  }
+  .auth-card .field {
+    margin-bottom: 12px;
+  }
+  .auth-card .field input {
+    padding: 10px 12px;
+    /* 16px exactly: anything smaller makes iOS Safari zoom in on focus, which
+       shifts the card out of the viewport and reintroduces the scroll. */
+    font-size: 16px;
+  }
+  .auth-card .btn-block {
+    margin-top: 4px;
+  }
+}
+
+/* Short viewports (landscape, or a phone with a tall browser chrome): shed the
+   remaining vertical air rather than introducing a scrollbar. */
+@media (max-height: 720px) and (max-width: 860px) {
+  .auth-form-wrap {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+  .auth-card {
+    padding-top: 18px;
+    padding-bottom: 18px;
+  }
+  .auth-card .field {
+    margin-bottom: 10px;
+  }
+  .auth-tabs {
+    margin-bottom: 14px;
+  }
 }

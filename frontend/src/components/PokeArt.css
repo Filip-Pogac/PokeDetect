@@ -1,0 +1,131 @@
+.energy-chip {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: currentColor;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+.energy-chip > svg {
+  color: #fff;
+}
+.energy-chip[data-type="fire"] { color: var(--type-fire); }
+.energy-chip[data-type="water"] { color: var(--type-water); }
+.energy-chip[data-type="grass"] { color: var(--type-grass); }
+.energy-chip[data-type="lightning"] { color: var(--type-lightning); }
+.energy-chip[data-type="psychic"] { color: var(--type-psychic); }
+.energy-chip[data-type="fighting"] { color: var(--type-fighting); }
+
+/* Ornamental strip. Muted by default; each glyph finds its own colour on
+   hover, which makes an otherwise static header feel alive without motion. */
+.energy-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.energy-row-item {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  opacity: 0.72;
+  transition: color 0.18s ease, opacity 0.18s ease, transform 0.18s ease,
+    border-color 0.18s ease;
+}
+.energy-row:hover .energy-row-item {
+  opacity: 1;
+}
+.energy-row-item:hover {
+  transform: translateY(-2px);
+  border-color: currentColor;
+}
+.energy-row-item[data-type="fire"]:hover { color: var(--type-fire); }
+.energy-row-item[data-type="water"]:hover { color: var(--type-water); }
+.energy-row-item[data-type="grass"]:hover { color: var(--type-grass); }
+.energy-row-item[data-type="lightning"]:hover { color: var(--type-lightning); }
+.energy-row-item[data-type="psychic"]:hover { color: var(--type-psychic); }
+.energy-row-item[data-type="fighting"]:hover { color: var(--type-fighting); }
+
+/* Decorative only — never interactive, never in the layout's way. */
+.poke-watermark {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  line-height: 0;
+  opacity: 0.07;
+  color: currentColor;
+}
+.poke-watermark svg {
+  display: block;
+  max-width: none;
+}
+
+.card-fan {
+  position: relative;
+  display: block;
+  margin: 0 auto;
+  aspect-ratio: 3 / 2;
+}
+.card-fan-item {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 44%;
+  aspect-ratio: 63 / 88;
+  margin-left: -22%;
+  border-radius: 7px;
+  border: 2px solid var(--surface);
+  box-shadow: var(--shadow-sm);
+  background: linear-gradient(150deg, var(--surface-sunken), var(--border-strong));
+}
+.card-fan .fan-left {
+  transform: translate(-52%, 4%) rotate(-16deg);
+}
+.card-fan .fan-right {
+  transform: translate(52%, 4%) rotate(16deg);
+}
+.card-fan .fan-mid {
+  display: grid;
+  place-items: center;
+  color: var(--yellow);
+  --pokeart-core: var(--ink);
+  background: linear-gradient(150deg, var(--ink-2), var(--ink));
+  box-shadow: var(--shadow-md);
+}
+
+/* A one-pass holographic sweep. Shared by card thumbnails and the brand mark;
+   both opt in by adding .holo-sheen to a positioned, clipping element. */
+.holo-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.5) 45%,
+    rgba(190, 220, 255, 0.35) 52%,
+    transparent 68%
+  );
+  transform: translateX(-120%);
+  transition: transform 0.7s ease;
+}
+.holo-sheen:hover::after,
+.holo-sheen:focus-within::after {
+  transform: translateX(120%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .holo-sheen::after {
+    transition: none;
+  }
+  .energy-row-item:hover {
+    transform: none;
+  }
+}

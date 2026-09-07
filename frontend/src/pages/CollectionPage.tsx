@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type CollectionCard } from "../api/client";
 import { CONDITIONS, ConditionBadge } from "../components/ConditionBadge";
+import { CardFan, Pokeball, PokeballWatermark } from "../components/PokeArt";
 import "./CollectionPage.css";
 
 const MULTIPLIERS: Record<string, number> = {
@@ -13,6 +14,10 @@ const MULTIPLIERS: Record<string, number> = {
   Played: 0.38,
   Poor: 0.25,
 };
+
+/** Fixed USD→EUR rate. Prices here are already approximations, so a static
+ *  rate keeps the header to a single figure without a live FX dependency. */
+const USD_TO_EUR = 0.92;
 
 // Worst-to-best, for sorting by condition.
 const CONDITION_RANK: Record<string, number> = Object.fromEntries(
@@ -51,6 +56,7 @@ function toCsv(cards: CollectionCard[]): string {
     "Set",
     "Number",
     "Rarity",
+    "Variant",
     "Condition",
     "Quantity",
     "Currency",
@@ -63,6 +69,7 @@ function toCsv(cards: CollectionCard[]): string {
     c.set_name,
     c.number,
     c.rarity,
+    c.variant,
     c.condition,
     c.quantity,
     c.currency,
@@ -132,19 +139,18 @@ export function CollectionPage() {
   }, [cards, query, setFilter, sortKey]);
 
   // Totals reflect what's currently shown, so filtering doubles as a way to
-  // value a single set.
+  // value a single set. Dollar-priced cards are folded into the euro figure so
+  // the header carries one number instead of two currencies added by eye.
   const totals = useMemo(() => {
     let eur = 0;
-    let usd = 0;
     let copies = 0;
     for (const c of visible) {
       copies += c.quantity;
       const v = totalValue(c);
       if (v == null) continue;
-      if (c.currency === "USD") usd += v;
-      else eur += v;
+      eur += c.currency === "USD" ? v * USD_TO_EUR : v;
     }
-    return { eur, usd, copies };
+    return { eur, copies };
   }, [visible]);
 
   const patchCard = async (
@@ -215,19 +221,12 @@ export function CollectionPage() {
           <h1>My Collection</h1>
           <p className="muted">
             {totals.copies} {totals.copies === 1 ? "card" : "cards"}
-            {visible.length !== totals.copies &&
-              ` · ${visible.length} ${visible.length === 1 ? "entry" : "entries"}`}
             {isFiltered && ` (filtered from ${cards.length})`}
           </p>
         </div>
         <div className="collection-total">
           <span className="muted">Estimated total</span>
-          <strong>
-            {totals.eur > 0 && `€${totals.eur.toFixed(2)}`}
-            {totals.eur > 0 && totals.usd > 0 && " + "}
-            {totals.usd > 0 && `$${totals.usd.toFixed(2)}`}
-            {totals.eur === 0 && totals.usd === 0 && "—"}
-          </strong>
+          <strong>{totals.eur > 0 ? `≈ €${totals.eur.toFixed(2)}` : "—"}</strong>
         </div>
       </div>
 
@@ -278,16 +277,19 @@ export function CollectionPage() {
 
       {cards.length === 0 ? (
         <div className="collection-empty card-surface">
+          <CardFan size={120} />
           <h3>No cards yet</h3>
           <p className="muted">
             Scan your first Pokémon card to start building your collection.
           </p>
           <Link to="/" className="btn btn-primary">
+            <Pokeball size={17} />
             Scan a card
           </Link>
         </div>
       ) : visible.length === 0 ? (
         <div className="collection-empty card-surface">
+          <PokeballWatermark className="collection-empty-ball" size={130} />
           <h3>No matches</h3>
           <p className="muted">
             No cards match your search or filter. Try a different term.
@@ -309,11 +311,14 @@ export function CollectionPage() {
             const total = totalValue(card);
             return (
               <div key={card.id} className="collection-card card-surface">
-                <div className="cc-image">
+                <div className="cc-image holo-sheen">
                   {card.image_url ? (
                     <img src={card.image_url} alt={card.name} />
                   ) : (
-                    <div className="cc-image-empty">No image</div>
+                    <div className="cc-image-empty">
+                      <Pokeball size={30} />
+                      <span>No image</span>
+                    </div>
                   )}
                   {card.quantity > 1 && (
                     <span className="cc-qty-badge">×{card.quantity}</span>
@@ -324,6 +329,7 @@ export function CollectionPage() {
                   <p className="cc-meta muted">
                     {card.set_name}
                     {card.number ? ` · #${card.number}` : ""}
+                    {card.variant ? ` · ${card.variant}` : ""}
                   </p>
 
                   <div className="cc-condition">
@@ -413,7 +419,8 @@ export function CollectionPage() {
 
       <p className="collection-disclaimer muted">
         Prices are approximate market figures from Cardmarket data and are not exact
-        quotes — actual value varies with condition, edition and demand.
+        quotes — actual value varies with condition, edition and demand. The
+        estimated total converts dollar-priced cards at a fixed rate.
       </p>
     </div>
   );

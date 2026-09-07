@@ -148,8 +148,11 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 220px;
+  /* The list is now every printing of the card, so it is given more room
+     before it starts scrolling. */
+  max-height: 340px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   margin-bottom: 18px;
 }
 .match-row {
@@ -254,12 +257,27 @@
 
 .modal-actions {
   margin-top: 18px;
+  display: flex;
+  gap: 10px;
 }
-.saved-note {
-  text-align: center;
-  color: var(--success);
-  font-weight: 600;
-  padding: 11px;
-  background: #e7f8ef;
-  border-radius: var(--radius-sm);
+/* Saving is the primary path, so it takes the room; re-scanning sits beside it
+   at its natural width rather than competing for weight. */
+.modal-actions .btn-primary {
+  flex: 1;
+}
+@media (max-width: 480px) {
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+  .modal-actions .btn {
+    width: 100%;
+  }
+}
+/* The collector number OCR read, shown so a misread is visible at a glance. */
+.read-number {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+}
+.read-number strong {
+  font-variant-numeric: tabular-nums;
 }

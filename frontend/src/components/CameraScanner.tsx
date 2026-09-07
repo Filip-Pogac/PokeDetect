@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { coverCrop } from "../lib/frameAnalysis";
+import { Pokeball } from "./PokeArt";
 import { useAutoCapture } from "./useAutoCapture";
 import "./CameraScanner.css";
 
@@ -7,6 +9,10 @@ interface Props {
   busy: boolean;
   /** Suppress auto-capture (scan in flight, or the result modal is open). */
   paused?: boolean;
+  /** The still being scanned, shown in the stage for as long as the scan runs.
+   *  An uploaded photo has no camera feed behind it, so without this the
+   *  scanline sweeps an empty black frame. */
+  stillImage?: string | null;
 }
 
 const AUTO_KEY = "pokedetect_auto_capture";
@@ -25,7 +31,21 @@ const STATUS_TEXT: Record<string, string> = {
   captured: "Captured",
 };
 
-export function CameraScanner({ onCapture, busy, paused = false }: Props) {
+// What is blocking the shot takes precedence over the generic phase text: a
+// guide that never fills has to say *why*, or the stricter framing check just
+// reads as the scanner being broken.
+const HINT_TEXT: Record<string, string> = {
+  framing: "Move closer — fill the guides",
+  focus: "Hold still to focus…",
+  steady: "Hold steady…",
+};
+
+export function CameraScanner({
+  onCapture,
+  busy,
+  paused = false,
+  stillImage = null,
+}: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [active, setActive] = useState(false);
@@ -64,16 +84,28 @@ export function CameraScanner({ onCapture, busy, paused = false }: Props) {
   const capture = useCallback(() => {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return;
+
+    // The preview is object-fit: cover, so the stage shows a centre crop of the
+    // feed. Grabbing the full frame instead would hand the scanner a wider shot
+    // than the one the user framed — the card comes out smaller than it looked
+    // inside the guides. Reproduce the same crop here so what is captured is
+    // exactly what was on screen.
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    const box = video.getBoundingClientRect();
+    const stageAspect = box.width > 0 && box.height > 0 ? box.width / box.height : vw / vh;
+    const { sx, sy, sw, sh } = coverCrop(vw, vh, stageAspect);
+
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = Math.round(sw);
+    canvas.height = Math.round(sh);
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
     onCapture(canvas.toDataURL("image/jpeg", 0.9));
   }, [onCapture]);
 
-  const { phase, progress } = useAutoCapture({
+  const { phase, progress, hint } = useAutoCapture({
     videoRef,
     active,
     enabled: autoCapture,
@@ -117,38 +149,34 @@ export function CameraScanner({ onCapture, busy, paused = false }: Props) {
           muted
           data-active={active}
         />
-        {!active && (
+        {/* Sits over the video too: freezing the frame being scanned reads
+            better than a live feed that has already moved on. */}
+        {stillImage && (
+          <>
+            <img className="scanner-still-bg" src={stillImage} alt="" aria-hidden="true" />
+            <img className="scanner-still" src={stillImage} alt="Card being scanned" />
+          </>
+        )}
+
+        {!active && !stillImage && (
           <div className="scanner-placeholder">
             <div className="scanner-icon" aria-hidden="true">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-                <rect
-                  x="9"
-                  y="9"
-                  width="6"
-                  height="6"
-                  rx="1"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                />
-              </svg>
+              <Pokeball size={44} />
             </div>
             <p>Point your camera at a Pokémon card</p>
           </div>
         )}
 
-        {/* Card framing guide — brightens as the steady-hold fills */}
-        <div className="scanner-frame" data-active={active} data-phase={phase}>
-          <span className="corner tl" />
-          <span className="corner tr" />
-          <span className="corner bl" />
-          <span className="corner br" />
-        </div>
+        {/* Card framing guide — brightens as the steady-hold fills. It is an
+            aiming aid, so it comes off once there is a still to look at. */}
+        {!stillImage && (
+          <div className="scanner-frame" data-active={active} data-phase={phase}>
+            <span className="corner tl" />
+            <span className="corner tr" />
+            <span className="corner bl" />
+            <span className="corner br" />
+          </div>
+        )}
 
         {showStatus && (
           <div className="scanner-status" data-phase={phase}>
@@ -164,7 +192,7 @@ export function CameraScanner({ onCapture, busy, paused = false }: Props) {
                 />
               </svg>
             </span>
-            <span>{STATUS_TEXT[phase] ?? ""}</span>
+            <span>{(hint && HINT_TEXT[hint]) || STATUS_TEXT[phase] || ""}</span>
           </div>
         )}
 

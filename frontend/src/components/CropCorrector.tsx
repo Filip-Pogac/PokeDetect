@@ -1,4 +1,10 @@
-import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useCallback,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type SyntheticEvent,
+} from "react";
 import "./CropCorrector.css";
 
 export interface Corner {
@@ -24,12 +30,36 @@ const INITIAL: Corner[] = [
 
 const LABELS = ["top-left", "top-right", "bottom-right", "bottom-left"];
 
+/** Tallest the editor may get, in vh. Mirrored into the width cap above. */
+const MAX_STAGE_VH = 60;
+
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 export function CropCorrector({ imageUrl, busy = false, onCancel, onConfirm }: Props) {
   const [corners, setCorners] = useState<Corner[]>(INITIAL);
   const [dragging, setDragging] = useState<number | null>(null);
+  const [ratio, setRatio] = useState<number | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
+
+  // The corners are sent to the backend as fractions of the *image*, and the
+  // backend multiplies them straight back up by the image's pixel size. So the
+  // stage the handles are positioned in has to be exactly the box the image
+  // content occupies — if the image were letterboxed inside a differently
+  // shaped stage, every fraction would be off, the card would be warped from
+  // the wrong region, and the OCR would read some other card entirely.
+  // Matching the stage to the image's own aspect ratio removes the letterbox.
+  const handleImageLoad = useCallback((e: SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth, naturalHeight } = e.currentTarget;
+    if (naturalWidth > 0 && naturalHeight > 0) {
+      setRatio(naturalWidth / naturalHeight);
+    }
+  }, []);
+
+  // Height is capped by expressing the cap as a width, so the box keeps its
+  // aspect ratio instead of being squashed by a max-height.
+  const stageStyle = ratio
+    ? { width: `min(100%, ${(ratio * MAX_STAGE_VH).toFixed(2)}vh)`, aspectRatio: `${ratio}` }
+    : undefined;
 
   const moveCorner = useCallback((index: number, clientX: number, clientY: number) => {
     const stage = stageRef.current;
@@ -107,8 +137,13 @@ export function CropCorrector({ imageUrl, busy = false, onCancel, onConfirm }: P
         </p>
       </div>
 
-      <div className="crop-stage" ref={stageRef}>
-        <img src={imageUrl} alt="Scanned card" draggable={false} />
+      <div className="crop-stage" ref={stageRef} style={stageStyle}>
+        <img
+          src={imageUrl}
+          alt="Scanned card"
+          draggable={false}
+          onLoad={handleImageLoad}
+        />
 
         {/* The overlay's viewBox is 0-100 with preserveAspectRatio="none", so
             SVG coordinates are literally the normalized percentages. */}

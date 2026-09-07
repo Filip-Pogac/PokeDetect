@@ -76,3 +76,19 @@
   background: var(--surface-muted);
   color: var(--ink);
 }
+
+/* Ghosted pokéball behind the dialog's top-right corner. */
+.onboard {
+  position: relative;
+  overflow: hidden;
+}
+.onboard-ball {
+  top: -62px;
+  right: -58px;
+  color: var(--ink);
+  opacity: 0.05;
+}
+.onboard > *:not(.onboard-ball) {
+  position: relative;
+  z-index: 1;
+}

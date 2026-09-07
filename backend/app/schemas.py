@@ -46,7 +46,7 @@ class PriceInfo(BaseModel):
     currency: str = "EUR"
     # A condition-adjusted estimate derived from the market price.
     estimated_price: float | None = None
-    source: str = "Cardmarket (via pokemontcg.io)"
+    source: str = "Cardmarket (via TCGdex)"
     disclaimer: str
 
 
@@ -60,14 +60,30 @@ class CardMatch(BaseModel):
     image_url: str = ""
     price: PriceInfo
     confidence: float = 0.0  # 0-1 blended text+visual match confidence
+    # Which print finish `price` reflects, e.g. "Reverse Holo", "1st Edition".
+    # Blank when the card only has one real-world finish, or when the photo
+    # gave no usable hint to pick between more than one.
+    variant: str = ""
 
 
 class ScanResult(BaseModel):
     matches: list[CardMatch]
+    # Cards sharing the scanned name, offered when `matches` is empty so a
+    # failed identification still gives the user something to pick from.
+    suggestions: list[CardMatch] = []
+    # The name(s) `suggestions` were looked up under, for the UI to show.
+    suggested_names: list[str] = []
     condition: ConditionEstimate
     recognized_text: list[str]
+    # The collector number read off the card ("9/165"), if any. Shown in the UI
+    # so the user can see *why* a particular printing was picked - and spot a
+    # misread at a glance.
+    recognized_number: str | None = None
     card_detected: bool
     message: str = ""
+    # Per-stage timing breakdown, present only when DEBUG_TIMINGS is on. A
+    # diagnostic for tuning the pipeline, not something the UI depends on.
+    timings: dict | None = None
 
 
 # ---- Collection ----
@@ -78,6 +94,7 @@ class CollectionCardCreate(BaseModel):
     rarity: str = ""
     image_url: str = ""
     tcg_id: str = ""
+    variant: str = ""
     market_price: float | None = None
     currency: str = "EUR"
     condition: str = "Near Mint"
@@ -96,6 +113,7 @@ class CollectionCardOut(BaseModel):
     rarity: str
     image_url: str
     tcg_id: str
+    variant: str
     market_price: float | None
     currency: str
     condition: str

@@ -15,8 +15,13 @@
 
 .crop-stage {
   position: relative;
+  /* Width and aspect-ratio are set inline from the loaded image's natural size
+     so this box *is* the image's content box — the handles' 0-1 coordinates are
+     only meaningful if there is no letterboxing. The 4/3 here is a placeholder
+     for the frame before the image reports its dimensions. */
   width: 100%;
-  max-height: 60vh;
+  aspect-ratio: 4 / 3;
+  margin: 0 auto;
   border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--ink);
@@ -27,7 +32,9 @@
 .crop-stage img {
   display: block;
   width: 100%;
-  max-height: 60vh;
+  height: 100%;
+  /* A no-op once the stage matches the image ratio; only does anything during
+     the pre-load frame, where it keeps the placeholder box undistorted. */
   object-fit: contain;
   pointer-events: none;
 }

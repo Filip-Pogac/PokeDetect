@@ -39,10 +39,16 @@ def _find_duplicate(
     a card already in the collection bumps its quantity instead. Matches on the
     TCG id when we have one (the precise printing), otherwise falls back to the
     name/set/number triple for manually-added cards.
+
+    Variant is part of that match: a TCG id identifies one database row, but a
+    Normal and a Reverse Holo of it are physically different cards worth very
+    different amounts, so merging them would silently average two prices into
+    one quantity.
     """
     stmt = select(CollectionCard).where(
         CollectionCard.owner_id == user.id,
         CollectionCard.condition == payload.condition,
+        CollectionCard.variant == payload.variant,
     )
     if payload.tcg_id:
         stmt = stmt.where(CollectionCard.tcg_id == payload.tcg_id)
@@ -105,7 +111,7 @@ def update_card(
     return card
 
 
-@router.delete("/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{card_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 def delete_card(
     card_id: int,
     current_user: User = Depends(get_current_user),

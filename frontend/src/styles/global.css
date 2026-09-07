@@ -19,6 +19,15 @@
   --yellow-strong: #f2b705;
   --yellow-tint: #fff6da;
 
+  /* Energy-type accents. Held to the palette's saturation so a row of six
+     still reads as one system rather than a rainbow. */
+  --type-fire: #e8552f;
+  --type-water: #2f8fe8;
+  --type-grass: #29a05f;
+  --type-lightning: #eab308;
+  --type-psychic: #a855c7;
+  --type-fighting: #b4621a;
+
   --danger: #d92d20;
   --danger-tint: #fdeceb;
   --success: #12a150;
