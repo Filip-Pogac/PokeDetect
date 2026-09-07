@@ -1,0 +1,45 @@
+# Backend container image for Vercel Functions.
+#
+# Why a container at all: the Python runtime caps a function bundle at 500 MB,
+# and this backend's OCR pipeline (EasyOCR -> PyTorch) cannot fit. A container
+# has no such cap, and lets the EasyOCR weights be baked in rather than
+# downloaded on every cold start.
+FROM python:3.12-slim
+
+# libgomp1 is PyTorch's OpenMP runtime; libglib2.0-0 is the one shared library
+# opencv-python-headless still links against. Nothing else from the slim base
+# is needed - headless OpenCV deliberately drops the GUI/X11 stack.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# PyTorch first, and in its own layer, from the CPU-only index. The default
+# PyPI wheel drags in the bundled CUDA runtime (nvidia-cu12-*, several GB) for
+# a GPU this function will never have - that is what pushed the previous build
+# to 5.7 GB. Its own layer also keeps it clear of the 500 MB per-compressed-
+# layer registry limit, which one combined install layer would flirt with.
+RUN pip install --index-url https://download.pytorch.org/whl/cpu \
+        torch==2.5.1 torchvision==0.20.1
+
+# Everything else resolves from PyPI. torch is already satisfied above, so the
+# easyocr dependency does not pull the CUDA build back in.
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+# Bake the EasyOCR detection + recognition weights (~100 MB) into the image.
+# Left out, every cold start would fetch them over the network before the first
+# scan could return - the slowest possible path on a phone.
+RUN python -c "import easyocr; easyocr.Reader(['en'], gpu=False, verbose=False)"
+
+COPY app ./app
+
+# Vercel routes to port 80 unless PORT is set; exec keeps uvicorn as PID 1 so it
+# receives the SIGTERM sent on scale-in, and the graceful timeout stays inside
+# the 30s shutdown grace period.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-80} --timeout-graceful-shutdown 25"]

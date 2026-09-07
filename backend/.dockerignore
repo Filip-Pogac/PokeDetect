@@ -1,0 +1,14 @@
+# The local virtualenv is ~1 GB and would otherwise be uploaded as build
+# context on every deploy.
+.venv/
+__pycache__/
+*.py[cod]
+
+# Local-only artefacts. The SQLite file in particular must never reach the
+# image: production reads from Neon, and shipping a stale copy of the database
+# would be both wrong and a data leak.
+*.db
+*.sqlite3
+.env
+*.log
+scripts/
