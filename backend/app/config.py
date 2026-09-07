@@ -51,7 +51,20 @@ class Settings:
         # to a Postgres connection string (e.g. Neon) for any real deployment.
         # Vercel's filesystem is ephemeral, so a SQLite file there is wiped
         # whenever the instance is recycled - users and collections with it.
-        self.database_url: str = os.getenv("DATABASE_URL", "sqlite:///./pokedetect.db")
+        # The SQLite default is a local-development convenience only. On a
+        # deployed instance it is a trap: the app starts, accepts a signup, and
+        # writes it to a container filesystem that is thrown away.
+        #
+        # Raising here was the obvious guard and is the wrong one - it kills
+        # the container before it can serve anything, and a container that
+        # cannot boot reports nothing useful. Flag it instead and let
+        # /api/health say so, which is the one channel that still works.
+        # VERCEL is set by the platform on every build and runtime instance.
+        _database_url = os.getenv("DATABASE_URL", "")
+        self.database_url_missing: bool = not _database_url and bool(
+            os.getenv("VERCEL")
+        )
+        self.database_url: str = _database_url or "sqlite:///./pokedetect.db"
         # Connection pool, only used for non-SQLite engines. Small on purpose:
         # a serverless instance serves few requests at once, and every instance
         # holds its own pool against Neon's connection limit.
