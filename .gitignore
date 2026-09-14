@@ -35,3 +35,5 @@ frontend/.vite/
 frontend/.frame-analysis.build.mjs
 .neon
 .env.local
+
+future_improvements

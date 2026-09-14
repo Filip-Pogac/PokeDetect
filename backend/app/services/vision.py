@@ -4,13 +4,15 @@ Pipeline
 --------
 1. detect_card()      Locate the card rectangle in the photo and perspective-warp
                       it to a flat, upright image (classical CV with OpenCV).
-2. recognize_text()   Read text off the card with a deep-learning OCR engine
-                      (EasyOCR, a CRNN-based recognizer). OCRs the name,
-                      collector-number and (only when the number is missing)
-                      attack regions first - small, fast, less noisy crops -
-                      and only falls back to whole-card OCR if that fails.
-                      Returns *several* name candidates; carddb.resolve_name
-                      decides which one is a real card name.
+2. recognize_text()   Read the identifying text off the card. With
+                      OCR_ENGINE=gemini the whole card goes to a vision model
+                      (services/geminiocr) that reports the fields directly;
+                      otherwise, and whenever that cannot answer, the local
+                      path OCRs the name, collector-number and (only when the
+                      number is missing) attack regions with EasyOCR - small,
+                      fast, less noisy crops - falling back to whole-card OCR
+                      if that fails. Returns *several* name candidates;
+                      carddb.resolve_name decides which is a real card name.
 3. assess_condition() Estimate a Cardmarket-style condition grade from image
                       cues: focus/sharpness, corner and edge wear, and glare.
 4. detect_type()      Read the energy type off the frame colour. Returns the
@@ -34,7 +36,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..config import get_settings
-from . import cardname, timing
+from . import cardname, geminiocr, timing
 
 settings = get_settings()
 
@@ -409,8 +411,12 @@ def warmup_ocr() -> bool:
     development that is every code edit.
 
     Returns whether an OCR engine is actually available.
+
+    The Gemini engine warms the local reader too, rather than skipping this:
+    EasyOCR is its fallback, so the first scan that Gemini cannot answer would
+    otherwise pay the model load on top of an already-failed network call.
     """
-    if settings.ocr_engine != "easyocr" or not _HAS_CV2:
+    if settings.ocr_engine not in ("easyocr", "gemini") or not _HAS_CV2:
         return False
     reader = _get_easyocr()
     if reader is None:
@@ -437,7 +443,11 @@ def _ocr_lines(image: np.ndarray) -> list[str]:
         except Exception:
             return []
 
-    # Default: EasyOCR (deep learning).
+    # Default: EasyOCR (deep learning). The "gemini" engine lands here too, and
+    # is meant to: by the time anything asks for lines of text, the vision model
+    # has either not been tried (detect_first_edition, which reads a crop the
+    # model is not asked about) or has already failed, and either way the local
+    # reader is the answer.
     reader = _get_easyocr()
     if reader is None:
         return []
@@ -521,6 +531,14 @@ _SEPARATORS = str.maketrans({"\\": "/", "|": "/", "\u2044": "/", "\u2215": "/"})
 # anchored at a word boundary - only at "not another digit".
 _NUMBER_RE = re.compile(r"(\d{1,3})\s*/\s*(\d{1,3})(?!\d)")
 
+# How far past the printed set total a collector number may legitimately go.
+# Secret rares are numbered beyond the official count, and the overshoot is
+# larger than it sounds: across TCGdex's sets the worst case is Paldean Fates,
+# 245 cards printed "/91" - 2.69x. Set at 3 to clear that with room, which
+# still rejects the misreads this guard is for by orders of magnitude ("165/9"
+# is 18x).
+_MAX_SECRET_OVERSHOOT = 3
+
 # Words that never appear alone as a card name. A line made only of these is
 # template chrome ("STAGE 2", "Basic Pokemon") rather than an identity.
 _NAME_STOPWORDS = {
@@ -589,16 +607,18 @@ def _normalize_digits(line: str) -> str:
 def _extract_numbers(lines: list[str]) -> list[str]:
     """Every plausible "<n>/<total>" reading in the lines, in order, deduped.
 
-    Readings whose left half exceeds the total ("165/9") are dropped as
-    transpositions rather than trusted - a card's index is never larger than the
-    set it belongs to.
+    Wildly out-of-range readings ("165/9") are dropped as misreads. The bound is
+    not "index <= total", which is the intuitive rule and the wrong one: the
+    printed denominator is the set's *official* count, and secret rares are
+    numbered past it - a real Pikachu is printed "241/236". Rejecting those
+    discarded the collector number of exactly the cards it matters most on.
     """
     found: list[str] = []
     seen: set[str] = set()
     for line in lines:
         for m in _NUMBER_RE.finditer(_normalize_digits(line)):
             index, total = int(m.group(1)), int(m.group(2))
-            if total == 0 or index == 0 or index > total:
+            if total == 0 or index == 0 or index > total * _MAX_SECRET_OVERSHOOT:
                 continue
             value = f"{index}/{total}"
             if value not in seen:
@@ -824,7 +844,66 @@ def _extract_name_candidates(lines: list[str], limit: int = 6) -> list[str]:
     return candidates[:limit]
 
 
+def _encode_jpeg(image: np.ndarray) -> bytes | None:
+    """JPEG-encode a card image for upload, capped at the configured edge.
+
+    The cap is a cost control, not a quality one: the request is billed by the
+    tiles the image is cut into, and a 2x warp buys no legibility the model can
+    use past the point where the collector number is already sharp.
+    """
+    if not _HAS_CV2 or image is None or image.size == 0:
+        return None
+    longest = max(image.shape[:2])
+    limit = settings.gemini_max_image_edge
+    if longest > limit:
+        scale = limit / longest
+        image = cv2.resize(
+            image,
+            (max(1, int(image.shape[1] * scale)), max(1, int(image.shape[0] * scale))),
+            interpolation=cv2.INTER_AREA,
+        )
+    ok, buffer = cv2.imencode(".jpg", image, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
+    return buffer.tobytes() if ok else None
+
+
+def _reading_from_gemini(raw: geminiocr.GeminiReading) -> TextReading:
+    """Turn the model's raw fields into a TextReading, validated as local OCR is.
+
+    The model is not trusted more than EasyOCR here: its collector number goes
+    through the same `_extract_numbers` parse (which rejects "165/9"-shaped
+    transpositions) and its HP through the same multiple-of-10 rule. What it is
+    trusted on is *structure* - that the string it called a name is the name -
+    which is exactly what the local path has to infer and this one does not.
+    """
+    numbers = _extract_numbers([raw.number]) if raw.number else []
+    hp = raw.hp if raw.hp and 10 <= raw.hp <= 400 and raw.hp % 10 == 0 else None
+    lines = [*raw.name_candidates, *raw.attack_names]
+    if raw.number:
+        lines.append(raw.number)
+    return _reading(lines, raw.name_candidates, numbers, hp, raw.attack_names)
+
+
 def recognize_text(image: np.ndarray) -> TextReading:
+    """Read the identifying text off a (warped) card.
+
+    With OCR_ENGINE=gemini the card goes to the vision model first, which reads
+    the fields directly instead of leaving them to be reconstructed from loose
+    lines of text. Anything short of a usable answer - no key, a rate limit, a
+    blocked or empty response, or a reading with neither a name nor a number in
+    it - falls through to the local pipeline below, so the vision model can only
+    ever improve a scan, never be a new way for one to fail.
+    """
+    if geminiocr.is_configured():
+        jpeg = _encode_jpeg(image)
+        if jpeg is not None:
+            raw = geminiocr.read_card(jpeg)
+            if raw is not None and not raw.empty:
+                return _reading_from_gemini(raw)
+
+    return _recognize_text_local(image)
+
+
+def _recognize_text_local(image: np.ndarray) -> TextReading:
     """Read the name band and collector number off a (warped) card.
 
     OCRs the two regions that matter first - smaller, less noisy crops than the

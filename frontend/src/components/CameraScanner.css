@@ -235,3 +235,11 @@
     border-width: 2.5px;
   }
 }
+
+/* Flashlight toggle — lit while the torch is on so its state is readable
+   at a glance, not just from the label. */
+.torch-toggle[data-on="true"] {
+  background: var(--yellow, #ffcb05);
+  border-color: var(--yellow, #ffcb05);
+  color: #1a1a1a;
+}

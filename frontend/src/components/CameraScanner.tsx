@@ -52,11 +52,23 @@ export function CameraScanner({
   const [error, setError] = useState<string | null>(null);
   const [autoCapture, setAutoCapture] = useState(loadAutoPreference);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Torch is a camera-track capability, not a DOM API: only some devices
+  // (phone rear cameras, over HTTPS) expose it, so the button only appears
+  // once the running track reports it.
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  // Mirrors torchOn so capture() (called from the auto-capture loop) can read
+  // the current value without being re-created on every toggle.
+  const torchOnRef = useRef(false);
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     setActive(false);
+    // Stopping the track kills the torch with it; just mirror that in state.
+    setTorchSupported(false);
+    torchOnRef.current = false;
+    setTorchOn(false);
   }, []);
 
   const startCamera = useCallback(async () => {
@@ -71,6 +83,13 @@ export function CameraScanner({
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
+      const [track] = stream.getVideoTracks();
+      const caps = track?.getCapabilities?.() as
+        | (MediaTrackCapabilities & { torch?: boolean })
+        | undefined;
+      setTorchSupported(Boolean(caps?.torch));
+      torchOnRef.current = false;
+      setTorchOn(false);
       setActive(true);
     } catch {
       setError(
@@ -80,6 +99,20 @@ export function CameraScanner({
   }, []);
 
   useEffect(() => () => stopCamera(), [stopCamera]);
+
+  const turnOffTorch = useCallback(() => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track || !torchOnRef.current) return;
+    torchOnRef.current = false;
+    setTorchOn(false);
+    track
+      .applyConstraints({
+        advanced: [{ torch: false } as MediaTrackConstraintSet & { torch: boolean }],
+      })
+      .catch(() => {
+        /* track may already be stopped - nothing left to switch off */
+      });
+  }, []);
 
   const capture = useCallback(() => {
     const video = videoRef.current;
@@ -102,8 +135,11 @@ export function CameraScanner({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    // The frame is already grabbed with the light on; the torch has done its
+    // job, so switch it off as soon as the scan starts.
+    turnOffTorch();
     onCapture(canvas.toDataURL("image/jpeg", 0.9));
-  }, [onCapture]);
+  }, [onCapture, turnOffTorch]);
 
   const { phase, progress, hint } = useAutoCapture({
     videoRef,
@@ -123,6 +159,24 @@ export function CameraScanner({
       }
       return next;
     });
+  }, []);
+
+  const toggleTorch = useCallback(async () => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    const next = !torchOnRef.current;
+    try {
+      await track.applyConstraints({
+        advanced: [{ torch: next } as MediaTrackConstraintSet & { torch: boolean }],
+      });
+      torchOnRef.current = next;
+      setTorchOn(next);
+    } catch {
+      // Some devices advertise torch but refuse it while the stream is live.
+      torchOnRef.current = false;
+      setTorchSupported(false);
+      setTorchOn(false);
+    }
   }, []);
 
   const handleFile = useCallback(
@@ -215,6 +269,18 @@ export function CameraScanner({
             <button className="btn btn-accent" onClick={capture} disabled={busy}>
               {busy ? <span className="spinner spinner-ink" /> : "Scan card"}
             </button>
+            {torchSupported && (
+              <button
+                className="btn btn-ghost torch-toggle"
+                onClick={toggleTorch}
+                disabled={busy}
+                data-on={torchOn}
+                aria-pressed={torchOn}
+                title={torchOn ? "Turn the flashlight off" : "Turn the flashlight on"}
+              >
+                {torchOn ? "Flashlight off" : "Flashlight on"}
+              </button>
+            )}
             <button className="btn btn-ghost" onClick={stopCamera} disabled={busy}>
               Stop
             </button>

@@ -9,11 +9,16 @@
   padding: 24px 16px;
   z-index: 100;
   overflow-y: auto;
+  /* The dialog must never scroll sideways: a horizontal scroll here shifts the
+     whole white card off-centre on phones. */
+  overflow-x: hidden;
 }
 .modal {
   position: relative;
+  box-sizing: border-box;
   width: 100%;
   max-width: 820px;
+  min-width: 0;
   padding: 26px;
   margin: auto;
 }
@@ -34,12 +39,36 @@
 }
 .modal-grid {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  /* minmax(0, …) rather than a bare 1fr: a 1fr track is at least as wide as
+     its min-content, and the nowrap match subtitles would otherwise force the
+     column (and the modal) wider than a phone screen. */
+  grid-template-columns: 260px minmax(0, 1fr);
   gap: 26px;
+}
+.modal-left,
+.modal-right {
+  min-width: 0;
 }
 @media (max-width: 680px) {
   .modal-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .modal-backdrop {
+    padding: 16px 12px;
+  }
+  .modal {
+    padding: 20px 16px;
+  }
+  .modal-close {
+    top: 10px;
+    right: 10px;
+  }
+  /* Keep the card image from filling the whole first screen. */
+  .result-image {
+    max-width: 220px;
+    margin: 0 auto;
   }
 }
 

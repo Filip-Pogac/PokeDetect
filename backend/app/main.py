@@ -55,6 +55,17 @@ async def _startup_jobs() -> None:
         _db_status = f"error: {type(exc).__name__}"
         logger.exception("database init failed; DB-backed routes will fail")
 
+    # A Gemini engine without a key is not an error - every scan quietly takes
+    # the local path and still works. That is exactly why it is worth saying
+    # out loud: the deployment looks healthy while running at the accuracy the
+    # key was meant to buy back, and nothing else would ever mention it.
+    if settings.ocr_engine == "gemini" and not settings.gemini_api_key:
+        logger.error(
+            "OCR_ENGINE=gemini but GEMINI_API_KEY is not set; every scan will "
+            "fall back to local OCR. Set it in the Vercel project's environment "
+            "variables."
+        )
+
     if not settings.ocr_warmup:
         _ocr_status = "skipped"
         return
@@ -112,4 +123,25 @@ def health() -> dict[str, str]:
         db_live = "ok"
     except Exception as exc:
         db_live = f"error: {type(exc).__name__}"
-    return {"status": "ok", "database": db, "database_live": db_live, "ocr": _ocr_status}
+    return {
+        "status": "ok",
+        "database": db,
+        "database_live": db_live,
+        "ocr": _ocr_status,
+        "ocr_engine": _ocr_engine_status(),
+    }
+
+
+def _ocr_engine_status() -> str:
+    """Which engine scans actually use, and why, if it isn't the configured one.
+
+    Reported because the Gemini path fails *open*: a missing key, a typo in the
+    model id or an exhausted quota all end in a working scan served by local
+    OCR, so there is no failure anywhere for an operator to notice. This is the
+    one place that can say the vision model is configured but not in play.
+    """
+    if settings.ocr_engine != "gemini":
+        return settings.ocr_engine
+    if not settings.gemini_api_key:
+        return "misconfigured: OCR_ENGINE=gemini without GEMINI_API_KEY; using easyocr"
+    return f"gemini:{settings.gemini_model} (fallback: easyocr)"

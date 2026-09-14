@@ -95,8 +95,41 @@ class Settings:
             if origin.strip()
         ]
 
-        # OCR engine: "easyocr" (deep learning), "tesseract", or "none".
+        # OCR engine: "gemini" (vision model, falls back to EasyOCR),
+        # "easyocr" (local deep learning), "tesseract", or "none".
         self.ocr_engine: str = os.getenv("OCR_ENGINE", "easyocr").lower()
+
+        # Gemini vision OCR. Only used when OCR_ENGINE=gemini, and only when a
+        # key is present - without one the engine reports itself unconfigured
+        # and every scan takes the local path, so a missing key degrades the
+        # accuracy of a deployment rather than breaking it.
+        self.gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
+        # Flash-lite, and measured rather than assumed. Reading a card is
+        # transcription, not reasoning, so the larger Flash models buy no
+        # accuracy here - benchmarked over a spread of eras (Base Set, XY EX,
+        # SV ex, a full-art secret rare) flash-lite read name, number and HP
+        # correctly on every one, at ~5s against 3.8-flash's ~13s. The decisive
+        # difference was availability: 3.8 and 3.7 answered 503 "high demand"
+        # on most calls, and a 503 here costs a wasted round trip before the
+        # local fallback runs.
+        self.gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+        self.gemini_base_url: str = os.getenv(
+            "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
+        )
+        # Generous relative to the other network timeouts: this one is on the
+        # critical path of a scan the user is watching, but the fallback it
+        # guards costs several seconds of local OCR, so giving up early to pay
+        # that instead is not a saving.
+        self.gemini_timeout_seconds: float = float(
+            os.getenv("GEMINI_TIMEOUT_SECONDS", "20.0")
+        )
+        # Longest edge of the image sent to the model. The warped card can be
+        # up to 2x the baseline (1260x1760) and the collector number is the
+        # smallest thing that has to survive, so this is set above the baseline
+        # height rather than at it - below ~1000px that print starts to go.
+        self.gemini_max_image_edge: int = int(
+            os.getenv("GEMINI_MAX_IMAGE_EDGE", "1600")
+        )
 
         # Card matching pipeline tunables.
         # How many raw candidates to pull from the card API text search. Sized
