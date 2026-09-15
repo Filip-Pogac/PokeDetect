@@ -37,3 +37,8 @@ frontend/.frame-analysis.build.mjs
 .env.local
 
 future_improvements
+
+# Claude Code project files (kept locally, not pushed)
+.claude/
+claude.md
+CLAUDE.md
