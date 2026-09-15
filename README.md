@@ -22,11 +22,14 @@ save it to your own collection.
   corners onto the card and re-scan. Confirmed corners restore the flattening
   step that OCR and visual matching depend on.
 - **Deep-learning recognition** — the card is located and perspective-corrected
-  with OpenCV, its name/number regions are read with EasyOCR (a CRNN-based
-  recognizer), and candidates from the Pokémon TCG card database are ranked by
-  a blend of fuzzy text matching (typo-tolerant, so OCR misreads still surface
-  the right card) and perceptual-hash visual similarity against the scanned
-  photo — each match shown with a confidence score.
+  with OpenCV, then read with Google's Gemini vision model (name, collector
+  number, HP and attacks, asked for directly rather than reconstructed from
+  raw characters), falling back to a local OCR pass (EasyOCR or Tesseract)
+  whenever Gemini can't answer. Candidates from the Pokémon TCG card database
+  are then ranked by a blend of fuzzy text matching (typo-tolerant, so OCR
+  misreads still surface the right card) and perceptual-hash visual
+  similarity against the scanned photo — each match shown with a confidence
+  score.
 - **Condition / damage detection** — image heuristics (focus/sharpness, corner
   and edge wear, glare) estimate a Cardmarket-style grade
   (Mint → Near Mint → Excellent → Good → Light Played → Played → Poor) and flag
@@ -50,7 +53,7 @@ save it to your own collection.
 | Frontend   | React + TypeScript, Vite, React Router (plain CSS)      |
 | Backend    | Python, FastAPI, SQLAlchemy, SQLite                     |
 | Auth       | JWT (PyJWT) + bcrypt password hashing                   |
-| Vision     | OpenCV (detection/warp), EasyOCR (text), imagehash + rapidfuzz (matching), NumPy heuristics |
+| Vision     | OpenCV (detection/warp), EasyOCR/Tesseract or Gemini vision API (text, selectable), imagehash + rapidfuzz (matching), NumPy heuristics |
 | Card data  | [TCGdex](https://tcgdex.dev) — free, no API key (incl. Cardmarket prices) |
 
 ---
@@ -77,11 +80,17 @@ can override any setting without editing it. Every key is optional except
 `SECRET_KEY`, which signs login tokens — leave it at the default and anyone
 reading this repo can forge a session. `backend/.env.example` lists the rest.
 
-> **First scan note:** on the first real scan, EasyOCR downloads its model
-> weights (~100 MB) once. If OpenCV or EasyOCR isn't installed, the app degrades
-> gracefully — you can still search cards by name and set the condition manually.
-> To use the lighter Tesseract engine instead, set `OCR_ENGINE=tesseract` (and
-> install the Tesseract binary), or `OCR_ENGINE=none` to disable OCR.
+> **OCR engine:** `OCR_ENGINE` defaults to `easyocr`. Set it to `gemini` (and
+> set `GEMINI_API_KEY`, a free key from
+> [aistudio.google.com/apikey](https://aistudio.google.com/apikey)) to read
+> the card directly with Google's vision model instead — it still falls back
+> to the local EasyOCR pipeline whenever it can't answer (no key, rate limit,
+> empty reading). `OCR_ENGINE=tesseract` uses the lighter Tesseract engine
+> (install the Tesseract binary), and `OCR_ENGINE=none` disables OCR
+> altogether. On the first scan that uses EasyOCR, it downloads its model
+> weights (~100 MB) once. If OpenCV or EasyOCR isn't installed, the app
+> degrades gracefully — you can still search cards by name and set the
+> condition manually.
 
 ### Database
 
@@ -185,11 +194,14 @@ frontend/
 1. **Detect** — find the largest card-shaped quadrilateral in the frame and warp
    it flat (`detect_card`), or use corners the user placed by hand
    (`warp_with_corners`).
-2. **Read** — OCR the card's name band and collector-number region
-   specifically (small, clean crops — falls back to whole-card OCR if a region
-   read fails). The name band spans the whole top of the card, because layouts
-   differ by era, and *every* line in it comes back as a name candidate
-   (`recognize_text`).
+2. **Read** — with `OCR_ENGINE=gemini`, the flattened card is sent to Gemini's
+   vision API, which is asked for the name, collector number, HP and attacks
+   directly (`services/geminiocr.py`); otherwise, or if Gemini can't answer
+   (no key, rate limit, empty reading), the name band and collector-number
+   region are OCR'd specifically with EasyOCR/Tesseract (small, clean crops —
+   falls back to whole-card OCR if a region read fails). The name band spans
+   the whole top of the card, because layouts differ by era, and *every* line
+   in it comes back as a name candidate (`recognize_text`).
 3. **Resolve the name** — score those candidates against a cached index of every
    real card name in the database and keep the best (`carddb.resolve_name`).
    This both fixes OCR typos ("Lucarlo" → "Lucario") and discards lines that
